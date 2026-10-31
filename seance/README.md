@@ -2,7 +2,9 @@
 
 Phones train a tiny Shakespeare model and send only the change in the weights. Orca (`seance/hall`, class `Orca`, id `orca`) is the one shared actor. It keeps the averaged weights. Each phone also has its own Worker actor, which only remembers that phone.
 
-Open `/` on the demo screen. That page is Orca: the join link, every phone, and the shared loss. Phones open `/join`. A phone posts its weight change to `/publish`. The full change is too large for the hosted socket, so that post is what moves the version.
+Open `/` on the demo screen. That page is Orca: the join link, every phone, and the shared loss. Phones open `/join`. A phone posts its weight change to `/publish` when the round clock is due, using the last weights it computed. It does not wait to be inside a training step, and it does not download the weights again after its own save. The full change is too large for the hosted socket, so that post is what moves the version.
+
+`GET /debug` is the trace log: phone send attempts, publish results, and the current clock. `GET /clock` is the small version and deadline the phone polls. `GET /live` uses that same light read. The 192KB weight copy is only for `GET /weights` and for the Voice after a version closes.
 
 `/frames` is only for a screen recording. It opens phone-sized copies of the join screen. Orca does not link to it.
 

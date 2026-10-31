@@ -21,6 +21,18 @@ interface $OrcaContract {
         recordLine(from: string, text: string, spokenVersion: number): Promise<void>
         seed(saved: SavedRoom): Promise<number>
         snapshot(): Promise<SavedRoom>
+        status(): Promise<{
+            version: number
+            spokenVersion: number
+            deadlineMs: number
+            submissions: number
+            quorum: number
+            avgLoss: number | null
+            messages: Note[]
+            lastSave: LastSave | null
+            lossHistory: LossPoint[]
+            phones: PhoneLive[]
+        }>
         submitChange(message: {
             name: string
             deltaB64: string
@@ -121,6 +133,7 @@ type SavedRoom = {
     lossHistory: LossPoint[]
     messages: Note[]
     spokenVersion: number
+    lastSave?: LastSave | null
 }
 type Seat = {
     id: string

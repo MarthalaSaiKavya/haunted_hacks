@@ -22,7 +22,20 @@ const TYPES = {
 };
 
 const tickets = new Map();
+const traces = [];
 let voiceBusy = false;
+
+function logTrace(entry) {
+  const row = {
+    at: entry.at || Date.now(),
+    name: entry.name || 'server',
+    event: entry.event,
+    detail: entry.detail || '',
+  };
+  traces.push(row);
+  if (traces.length > 200) traces.shift();
+  console.log(`[trace] ${row.name} ${row.event} ${row.detail}`);
+}
 const asked = new Set();
 const relayBin = new URL('./relay/node_modules/.bin/agent-relay', import.meta.url).pathname;
 const relayCwd = new URL('./relay/', import.meta.url).pathname;
@@ -108,14 +121,17 @@ async function runRoundFlow(snap, last) {
 }
 
 // Once a second: if a version closed and the Voice has not answered it, run the flow once.
+// The check uses status() so the weights are only read when a new line is actually due.
 async function exchange() {
   if (voiceBusy) return;
   voiceBusy = true;
   try {
+    const clock = await room().status();
+    const last = clock.lossHistory.at(-1);
+    if (!last) return;
+    if (last.version <= clock.spokenVersion || asked.has(last.version)) return;
     const snap = await room().snapshot();
-    const last = snap.lossHistory.at(-1);
-    if (!last || !snap.weightsB64) return;
-    if (last.version <= snap.spokenVersion || asked.has(last.version)) return;
+    if (!snap.weightsB64) return;
     asked.add(last.version);
     try {
       await runRoundFlow(snap, last);
@@ -209,17 +225,68 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
       return Response.json({ accepted: false, version: 0, reason: 'the change was not valid JSON', weightsB64: '' }, { status: 400 });
     }
     try {
+      const name = String(message.name ?? 'a phone').slice(0, 32);
       const result = await room().submitChange({
-        name: String(message.name ?? 'a phone').slice(0, 32),
+        name,
         deltaB64: String(message.deltaB64 ?? ''),
         tokens: Number(message.tokens),
         loss: Number(message.loss),
         baseVersion: Number(message.baseVersion),
       });
+      logTrace({
+        name,
+        event: result.accepted ? 'publish-ok' : 'publish-rejected',
+        detail: `v${message.baseVersion}->${result.version} loss ${Number(message.loss).toFixed(2)} pieces ${message.tokens} ${result.reason || ''}`.trim(),
+      });
       return Response.json(result, { headers: { 'cache-control': 'no-store' } });
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Orca did not accept the change';
+      logTrace({ name: String(message.name ?? 'a phone'), event: 'publish-error', detail: reason });
       return Response.json({ accepted: false, version: 0, reason, weightsB64: '' }, { status: 502 });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/trace') {
+    let entry = {};
+    try { entry = await req.json(); } catch { entry = {}; }
+    logTrace({
+      name: String(entry.name ?? 'phone').slice(0, 32),
+      event: String(entry.event ?? 'note').slice(0, 40),
+      detail: String(entry.detail ?? '').slice(0, 180),
+      at: Number(entry.at) || Date.now(),
+    });
+    return Response.json({ ok: true });
+  }
+
+  if (url.pathname === '/debug') {
+    let clock = null;
+    try {
+      const snap = await room().status();
+      clock = {
+        version: snap.version,
+        deadlineMs: snap.deadlineMs,
+        submissions: snap.submissions,
+        spokenVersion: snap.spokenVersion,
+        phones: snap.phones,
+      };
+    } catch (error) {
+      clock = { error: error instanceof Error ? error.message : String(error) };
+    }
+    return Response.json({ clock, traces: traces.slice(-80) }, { headers: { 'cache-control': 'no-store' } });
+  }
+
+  if (url.pathname === '/clock') {
+    try {
+      const snap = await room().status();
+      return Response.json({
+        version: snap.version,
+        deadlineMs: snap.deadlineMs,
+        submissions: snap.submissions,
+      }, { headers: { 'cache-control': 'no-store' } });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'clock failed';
+      logTrace({ name: 'server', event: 'clock-error', detail: reason });
+      return Response.json({ version: null, deadlineMs: 0, submissions: 0, reason }, { status: 502 });
     }
   }
 
@@ -265,13 +332,16 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
   }
 
   if (url.pathname === '/live') {
-    const snap = await room().snapshot();
+    const snap = await room().status();
     return Response.json({
       version: snap.version,
       spokenVersion: snap.spokenVersion,
+      deadlineMs: snap.deadlineMs,
+      submissions: snap.submissions,
       messages: snap.messages,
       lastSave: snap.lastSave,
       lossHistory: snap.lossHistory,
+      phones: snap.phones,
     }, { headers: { 'cache-control': 'no-store' } });
   }
 

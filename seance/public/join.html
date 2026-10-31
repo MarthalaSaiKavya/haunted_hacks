@@ -129,7 +129,6 @@ let clientId = null;
 let version = 0;
 let running = false;
 let abortFlag = false;
-let submitPending = false;
 let trainingHandle = {};
 let roundStart = null;
 let roundSteps = 0;
@@ -140,8 +139,8 @@ let iSent = false;
 let myLosses = [];
 let phase = 'loss';
 let latestWeights = '';
-let sentForVersion = -1;
 let loadingWeights = false;
+let lastStepAt = 0;
 
 function setPhase(next) {
   phase = next;
@@ -197,13 +196,57 @@ function paintMine() {
   $('orca-detail').textContent = `version ${version}`;
 }
 
-function applyMeta(msg) {
-  version = msg.version ?? version;
-  paintMine();
-  const others = (msg.clients || []).filter((client) => client.id !== clientId);
+let roomDeadline = 0;
+let sentDeadline = 0;
+let publishing = false;
+let lastFlat = null;
+
+function trace(event, detail) {
+  console.log('[seance]', myName, event, detail || '');
+  fetch('/trace', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: myName, event, detail: detail || '' }),
+  }).catch(() => {});
+}
+
+function othersLine(clients) {
+  const others = (clients || []).filter((client) => client.id !== clientId);
   $('others').textContent = others.length
     ? `Also connected: ${others.map((client) => client.name).join(', ')}. The first phone to send this round is the one Orca saves.`
     : 'You are the only phone in the room. Your send is the one Orca will save.';
+}
+
+// The room moved on without this phone's delta. Drop the stale copy and train from the new one.
+function dropCopy(reason) {
+  latestWeights = '';
+  lastFlat = null;
+  roundStart = null;
+  roundSteps = 0;
+  roundTokens = 0;
+  roundLossSum = 0;
+  abortFlag = true;
+  trace('reload', reason);
+  loadWeights().then(() => kick());
+}
+
+// Adopt a newer version. Keep training when this phone is the one that just saved.
+function roomMoved(nextVersion, reason) {
+  if (nextVersion == null || nextVersion === version) return;
+  if (publishing) {
+    version = nextVersion;
+    return;
+  }
+  const stale = (lastFlat || roundStart) && nextVersion > version;
+  version = nextVersion;
+  if (stale) dropCopy(reason);
+}
+
+function applyMeta(msg) {
+  if (msg.deadlineMs) roomDeadline = msg.deadlineMs;
+  roomMoved(msg.version, msg.type || 'socket');
+  paintMine();
+  if (msg.clients) othersLine(msg.clients);
 }
 
 async function ensureBackend() {
@@ -242,19 +285,13 @@ async function runLoop(initialWeights, device) {
   setPhase('loss');
   $('status').textContent = device === 'wasm' ? 'This phone is guessing the next piece.' : 'This phone is training on the slow engine.';
   $('contrib').textContent = `You are training on version ${version}. Nothing has been sent yet.`;
+  lastStepAt = Date.now();
   while (!abortFlag) {
-    const event = await Promise.race([
-      gen.next(),
-      new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000)),
-    ]);
-    if (event === 'timeout') {
-      $('status').textContent = 'Guessing stalled. Starting again.';
-      break;
-    }
-    if (event.done) break;
+    const event = await gen.next();
+    if (event.done || abortFlag) break;
     const step = event.value;
-    if (abortFlag) break;
     if (step.type === 'step') {
+      lastStepAt = Date.now();
       roundSteps += 1;
       roundLossSum += step.loss;
       roundTokens += step.batchSize ?? 8;
@@ -264,38 +301,47 @@ async function runLoop(initialWeights, device) {
       $('step').textContent = `guess ${step.step} on this phone`;
       paintMine();
       if (roundSteps % 3 === 0) draw();
+      if (trainingHandle.getFlat) lastFlat = new Float32Array(trainingHandle.getFlat());
       if (ws && ws.readyState === WebSocket.OPEN && step.step % 4 === 0) {
         ws.send(JSON.stringify({ type: 'loss', loss: step.loss, tokens: roundTokens }));
       }
       if (workerWs && workerWs.readyState === WebSocket.OPEN && step.step % 4 === 0) {
         workerWs.send(JSON.stringify({ type: 'progress', loss: step.loss, step: step.step }));
       }
-      if (submitPending) {
-        setPhase('send');
-        $('status').textContent = 'Sending your change to Orca.';
-        submitPending = false;
-        const outcome = await sendOffering();
-        if (outcome === 'reload') {
-          abortFlag = true;
-          break;
-        }
-      }
+      void maybeSend('step');
       if (step.step % 2 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 }
 
-async function sendOffering() {
-  if (roundSteps === 0 || !trainingHandle.getFlat) return '';
-  const flat = trainingHandle.getFlat();
-  let delta;
-  if (roundStart && roundStart.length === flat.length) {
-    delta = new Float32Array(flat.length);
-    for (let i = 0; i < flat.length; i++) delta[i] = flat[i] - roundStart[i];
-  } else {
-    delta = flat;
+async function maybeSend(reason) {
+  if (publishing || !lastFlat || roundSteps < 1 || !roomDeadline) return;
+  const deadline = roomDeadline;
+  if (sentDeadline === deadline) return;
+  if (Date.now() < deadline - 3000) return;
+  publishing = true;
+  trace('send', `${reason} v${version}`);
+  try {
+    const outcome = await sendOffering();
+    if (outcome === 'ok') sentDeadline = deadline;
+    if (outcome === 'reload') dropCopy('offering was for an older version');
+  } finally {
+    publishing = false;
   }
-  const loss = roundLossSum / roundSteps;
+}
+
+async function sendOffering() {
+  if (roundSteps === 0 || !lastFlat || !roundStart || roundStart.length !== lastFlat.length) {
+    trace('send-skip', 'no delta yet');
+    return 'fail';
+  }
+  const flat = lastFlat;
+  const steps = roundSteps;
+  const tokens = Math.max(1, roundTokens);
+  const loss = roundLossSum / steps;
+  const base = version;
+  const delta = new Float32Array(flat.length);
+  for (let i = 0; i < flat.length; i++) delta[i] = flat[i] - roundStart[i];
   let result = null;
   try {
     const response = await fetch('/publish', {
@@ -305,38 +351,37 @@ async function sendOffering() {
       body: JSON.stringify({
         name: myName,
         deltaB64: encodeF32(delta),
-        tokens: Math.max(1, roundTokens),
+        tokens,
         loss,
-        baseVersion: version,
+        baseVersion: base,
       }),
     });
     result = await response.json();
   } catch (error) {
-    $('last').textContent = error instanceof Error ? error.message : 'The send to Orca failed.';
+    const message = error instanceof Error ? error.message : 'The send to Orca failed.';
+    $('last').textContent = message;
     setPhase('loss');
-    return '';
+    trace('send-fail', message);
+    return 'fail';
   }
   if (workerWs && workerWs.readyState === WebSocket.OPEN) {
     workerWs.send(JSON.stringify({
       type: 'checkpoint',
       weightsB64: encodeF32(flat),
       loss,
-      step: roundSteps,
+      step: steps,
     }));
   }
   if (!result?.accepted) {
     $('last').textContent = result?.reason || 'Orca did not keep this change. This phone keeps guessing.';
     setPhase('loss');
     const stale = typeof result?.reason === 'string' && result.reason.includes('version');
-    if (stale) {
-      await loadWeights();
-      return 'reload';
-    }
-    return '';
+    trace('send-rejected', result?.reason || '');
+    if (stale) return 'reload';
+    return 'fail';
   }
   iSent = true;
   version = result.version;
-  sentForVersion = -1;
   roundStart = new Float32Array(flat);
   roundSteps = 0;
   roundTokens = 0;
@@ -345,7 +390,8 @@ async function sendOffering() {
   $('last').textContent = `Orca saved your change. The shared model is now version ${result.version}.`;
   paintMine();
   setPhase('loss');
-  return '';
+  trace('send-ok', `version ${result.version}`);
+  return 'ok';
 }
 
 async function loadWeights() {
@@ -356,7 +402,10 @@ async function loadWeights() {
     if (!response.ok) return;
     const body = await response.json();
     if (body.version != null) version = body.version;
-    if (body.weightsB64) latestWeights = body.weightsB64;
+    if (body.weightsB64) {
+      latestWeights = body.weightsB64;
+      trace('weights', `version ${body.version} chars ${body.weightsB64.length}`);
+    }
   } catch {
     // The next tick tries again. The socket hello is too big to rely on.
   } finally {
@@ -456,16 +505,7 @@ async function connect() {
       iSent = false;
     }
     applyMeta(msg);
-    if (msg.type === 'hello' || msg.type === 'round') {
-      sentForVersion = -1;
-      latestWeights = '';
-      abortFlag = true;
-      loadWeights().then(() => kick());
-    }
-    if (msg.type === 'submit') {
-      submitPending = true;
-      kick();
-    }
+    if (msg.type === 'submit') void maybeSend('submit');
   };
   ws.onclose = () => {
     $('status').textContent = 'The connection dropped. Rejoining.';
@@ -481,13 +521,38 @@ $('leave').onclick = () => {
   $('status').textContent = 'You left. Orca still has the last saved weights.';
 };
 
+async function pollClock() {
+  try {
+    const response = await fetch('/clock', { cache: 'no-store' });
+    if (!response.ok) return;
+    const body = await response.json();
+    if (body.deadlineMs) roomDeadline = body.deadlineMs;
+    roomMoved(body.version, 'clock');
+    paintMine();
+  } catch {
+    // The next tick tries again. The socket still carries the deadline.
+  }
+}
+
 connect();
 draw();
+let wedgedNote = 0;
 setInterval(() => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (supervisor && lastStepAt && Date.now() - lastStepAt > 20000 && !abortFlag) {
+    abortFlag = true;
+    if (Date.now() - wedgedNote > 20000) {
+      wedgedNote = Date.now();
+      trace('wedged', 'no step for 20s');
+    }
+  }
   if (!latestWeights) loadWeights().then(() => kick());
-  else if (!supervisor) kick();
-}, 4000);
+  else if (!supervisor) {
+    trace('restart', 'training loop was down');
+    kick();
+  }
+  pollClock().then(() => maybeSend('clock'));
+}, 1000);
 </script>
 </body>
 </html>

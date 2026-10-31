@@ -104,6 +104,46 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         }
     }
 
+    // The clock and the roster, without the weights.
+    // The page polls this every second. snapshot() is the 192KB weight copy,
+    // and polling that held the mailbox so a phone's publish could miss the round.
+    async status(): Promise<{
+        version: number
+        spokenVersion: number
+        deadlineMs: number
+        submissions: number
+        quorum: number
+        avgLoss: number | null
+        messages: Note[]
+        lastSave: LastSave | null
+        lossHistory: LossPoint[]
+        phones: PhoneLive[]
+    }> {
+        const sockets = await this.getConnections()
+        const phones = sockets
+            .filter((socket) => socket.metadata.role !== "screen")
+            .map((socket) => {
+                const prev = this.board.find((row) => row.id === socket.id)
+                const name = socket.metadata.name || "phone"
+                return prev
+                    ? { ...prev, name }
+                    : { id: socket.id, name, loss: null, tokens: 0, offered: false }
+            })
+        const last = this.lossHistory.at(-1)
+        return {
+            version: this.version,
+            spokenVersion: this.spokenVersion,
+            deadlineMs: this.deadlineMs,
+            submissions: this.offerings.length,
+            quorum: QUORUM,
+            avgLoss: last ? last.avgLoss : null,
+            messages: this.messages,
+            lastSave: this.lastSave,
+            lossHistory: this.lossHistory,
+            phones,
+        }
+    }
+
     // Copy an older saved room in, but only if this actor is behind it.
     // Example: actor is version 0, the file is version 27, so we load 27.
     async seed(saved: SavedRoom): Promise<number> {
@@ -214,7 +254,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         const closed = this.version !== before
         if (closed) this.broadcast(await this.full("round", false))
         else this.broadcast(await this.full("pulse"))
-        return { accepted: closed, version: this.version, reason: result.reason, weightsB64: closed ? this.weightsB64 : "" }
+        return { accepted: closed, version: this.version, reason: result.reason, weightsB64: "" }
     }
 
     // Accept a phone's weight change if it matches this version and this model size.

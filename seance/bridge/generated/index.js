@@ -26,6 +26,7 @@ export const actors = {
                     { name: "recordLine", result: "void" },
                     { name: "seed", result: "value" },
                     { name: "snapshot", result: "value" },
+                    { name: "status", result: "value" },
                     { name: "submitChange", result: "value" }
                 ],
                 transport
