@@ -400,16 +400,24 @@ function paint(now) {
 }
 requestAnimationFrame(paint);
 
+let rosterHtml = '';
+
 function renderPhones(list) {
-  phones = list || [];
+  phones = [...list].sort((a, b) => a.name.localeCompare(b.name));
   $('phones').textContent = String(phones.length);
-  $('presence').textContent = phones.length === 0 ? 'waiting for a phone' : (phones.length === 1 ? '1 phone training' : `${phones.length} phones training`);
-  $('roster').innerHTML = phones.length
+  const training = phones.filter((phone) => phone.tokens > 0).length;
+  $('presence').textContent = phones.length === 0
+    ? 'waiting for a phone'
+    : (training ? `${training} guessing now` : `${phones.length} connected`);
+  const html = phones.length
     ? phones.map((phone) => {
         const state = phone.offered ? 'sending' : (phone.tokens > 0 ? 'training' : 'connected');
         return `<tr><td>${phone.name}</td><td>${phone.loss == null ? '—' : Number(phone.loss).toFixed(2)}</td><td>${phone.tokens || 0}</td><td>${state}</td></tr>`;
       }).join('')
     : '<tr><td colspan="4">No phone is connected.</td></tr>';
+  if (html === rosterHtml) return;
+  rosterHtml = html;
+  $('roster').innerHTML = html;
 }
 
 function renderHistory(history) {
@@ -483,13 +491,15 @@ function renderSave(save, version) {
 }
 
 function apply(msg) {
-  deadlineMs = msg.deadlineMs || deadlineMs;
-  $('version').textContent = String(msg.version ?? '—');
-  $('offer').textContent = `${msg.submissions || 0} send${msg.submissions === 1 ? '' : 's'} this round · first one is saved`;
-  renderPhones(msg.phones || msg.clients || []);
+  if (msg.deadlineMs) deadlineMs = msg.deadlineMs;
+  if (msg.version != null) $('version').textContent = String(msg.version);
+  if (msg.submissions != null) {
+    $('offer').textContent = `${msg.submissions || 0} send${msg.submissions === 1 ? '' : 's'} this round · first one is saved`;
+  }
+  if (Array.isArray(msg.phones) || Array.isArray(msg.clients)) renderPhones(msg.phones || msg.clients);
   if (msg.lossHistory) renderHistory(msg.lossHistory);
-  renderSave(msg.lastSave, msg.version);
-  renderRelay(msg.messages || []);
+  if (msg.lastSave !== undefined) renderSave(msg.lastSave, msg.version);
+  if (msg.messages) renderRelay(msg.messages);
   if (msg.weightsB64) $('weights').textContent = '36,096 weights saved in Orca';
 }
 
