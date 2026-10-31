@@ -4,8 +4,6 @@
 // and asks the saved weights for one real line after each round.
 
 import { actors } from './bridge/generated/index.js';
-import { decodeF32 } from './codec.js';
-import { speak } from './infer.js';
 
 const PORT = 43131;
 const ACTOR_ID = 'orca';
@@ -74,59 +72,57 @@ async function relay(args) {
   return start === -1 ? text : JSON.parse(text.slice(start));
 }
 
-// After a new round, the Watcher DMs the Voice the real mean loss. Once per version.
-async function watcherStep(snap) {
-  const last = snap.lossHistory.at(-1);
-  if (!last || !snap.weightsB64) return;
-  if (last.version <= snap.spokenVersion || asked.has(last.version)) return;
-  const text = `Version ${last.version} closed. Mean loss ${last.avgLoss.toFixed(3)}. Continue from "to be".`;
-  await relay(['message', 'dm', 'send', 'voice', text, '--as', 'watcher']);
-  await room().recordLine('The Watcher', `To the Voice: ${text}`, snap.spokenVersion);
-  asked.add(last.version);
+// One closed version becomes one Agent Relay flow.
+// The Watcher DMs the loss. The Voice continues "to be" from the saved weights and DMs back.
+async function runRoundFlow(snap, last) {
+  const weightsPath = await Deno.makeTempFile({ prefix: 'orca-weights-', suffix: '.b64' });
+  const resultPath = await Deno.makeTempFile({ prefix: 'orca-relay-', suffix: '.json' });
+  await Deno.writeTextFile(weightsPath, snap.weightsB64);
+  const input = JSON.stringify({
+    version: last.version,
+    loss: last.avgLoss.toFixed(3),
+    weightsPath,
+    resultPath,
+    speakScript: new URL('./relay/flows/speak-line.js', import.meta.url).pathname,
+    relayBin,
+    denoBin: Deno.execPath(),
+  });
+  const flowPath = new URL('./relay/flows/round-closed.flow.ts', import.meta.url).pathname;
+  const proc = new Deno.Command(relayBin, {
+    args: ['flows', 'run', flowPath, '--input', input, '--json', '--no-observer-link', '--local-agent'],
+    cwd: relayCwd,
+    stdout: 'piped',
+    stderr: 'piped',
+    signal: AbortSignal.timeout(180000),
+  });
+  const out = await proc.output();
+  const text = new TextDecoder().decode(out.stdout).trim();
+  const err = new TextDecoder().decode(out.stderr).trim();
+  if (out.code !== 0) throw new Error(err || text || `round flow exited ${out.code}`);
+  const result = JSON.parse(await Deno.readTextFile(resultPath));
+  await Deno.remove(weightsPath).catch(() => {});
+  await Deno.remove(resultPath).catch(() => {});
+  if (!result.ask || !result.reply) throw new Error('round flow returned no lines');
+  await room().recordLine('The Watcher', `To the Voice: ${result.ask}`, snap.spokenVersion);
+  await room().recordLine('The Voice', `To the Watcher: ${result.reply}`, last.version);
 }
 
-// The Voice reads the Watcher's DM, runs the saved model, and DMs the line back.
-async function voiceStep() {
-  const inbox = await relay(['message', 'inbox', 'check', '--as', 'voice']);
-  for (const dm of inbox.unreadDms ?? []) {
-    if (dm.from !== 'watcher' || !dm.conversationId) continue;
-    const listed = await relay(['message', 'dm', 'list', dm.conversationId, '--as', 'voice', '--limit', '20']);
-    const messages = Array.isArray(listed) ? listed : [];
-    const request = messages.find((item) =>
-      item.from?.name === 'watcher' && /^Version \d+ closed\. Mean loss [0-9.]+/.test(item.text ?? '')
-    );
-    if (!request) {
-      if (dm.lastMessage?.id) await relay(['message', 'inbox', 'mark_read', dm.lastMessage.id, '--as', 'voice']);
-      continue;
-    }
-    const closed = Number(request.text.match(/^Version (\d+)/)[1]);
-    const snap = await room().snapshot();
-    if (!snap.weightsB64 || closed <= snap.spokenVersion) {
-      await relay(['message', 'inbox', 'mark_read', request.id, '--as', 'voice']);
-      continue;
-    }
-    let reply;
-    try {
-      const line = await speak(decodeF32(snap.weightsB64), 'to be');
-      reply = `It continues: ${line}`;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      reply = `The sample failed: ${message}`;
-    }
-    await relay(['message', 'dm', 'send', 'watcher', reply, '--as', 'voice']);
-    await room().recordLine('The Voice', `To the Watcher: ${reply}`, closed);
-    await relay(['message', 'inbox', 'mark_read', request.id, '--as', 'voice']);
-  }
-}
-
-// Once a second: let the Watcher speak, then let the Voice answer. Never overlap.
+// Once a second: if a version closed and the Voice has not answered it, run the flow once.
 async function exchange() {
   if (voiceBusy) return;
   voiceBusy = true;
   try {
     const snap = await room().snapshot();
-    await watcherStep(snap);
-    await voiceStep();
+    const last = snap.lossHistory.at(-1);
+    if (!last || !snap.weightsB64) return;
+    if (last.version <= snap.spokenVersion || asked.has(last.version)) return;
+    asked.add(last.version);
+    try {
+      await runRoundFlow(snap, last);
+    } catch (error) {
+      asked.delete(last.version);
+      throw error;
+    }
   } finally {
     voiceBusy = false;
   }

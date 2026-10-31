@@ -15,4 +15,4 @@ deno run --allow-net --allow-read --allow-write --allow-env --allow-run seance/s
 
 `terse deploy` from `seance/hall` publishes the same two actors. The hosted address is `https://api.useterse.ai/cmvwscatj00t9jy2azovudy8m/actors`. Keep the API key in that server environment. Do not put it in the page or in git.
 
-The Watcher and the Voice are two Agent Relay agents. After a round the Watcher DMs the Voice with the measured loss. The Voice reads that DM, runs the saved weights, and DMs the reply back. Those two lines are also written into the room transcript.
+The Watcher and the Voice are two Agent Relay agents. After a round closes, `seance/relay/flows/round-closed.flow.ts` runs once. The Watcher DMs the Voice the mean loss. The Voice continues from "to be" using the saved weights and DMs the line back. Those two lines show on the Orca screen. The flow does not train and does not change the version.

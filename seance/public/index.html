@@ -111,7 +111,12 @@
     <div class="stat"><div class="label">This round</div><div class="num" id="countdown">—</div><div class="sub" id="offer">first send moves the model</div></div>
   </div>
 
-  <p class="save" id="save-line" style="margin:0 0 0.7rem">When a phone sends, its name lands on the ring and the curve steps down.</p>
+  <section style="margin:0 0 0.7rem">
+    <h2>Watcher to Voice</h2>
+    <p class="save" id="relay-ask">The Watcher speaks after the next saved version.</p>
+    <p class="save" id="relay-reply">The Voice answers in that same thread.</p>
+    <p class="save" id="save-line">When a phone sends, its name lands on the ring and the curve steps down.</p>
+  </section>
   <p id="status">Connecting to Orca.</p>
   <p id="error"></p>
 
@@ -397,6 +402,23 @@ function renderHistory(history) {
   }
 }
 
+function renderRelay(messages) {
+  let ask = '';
+  let reply = '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const text = messages[i].text || '';
+    if (!reply && messages[i].from === 'The Voice' && text.startsWith('To the Watcher:')) {
+      reply = text.slice('To the Watcher:'.length).trim();
+    }
+    if (!ask && messages[i].from === 'The Watcher' && text.startsWith('To the Voice:')) {
+      ask = text.slice('To the Voice:'.length).trim();
+    }
+    if (ask && reply) break;
+  }
+  if (ask) $('relay-ask').textContent = `Watcher: ${ask}`;
+  if (reply) $('relay-reply').textContent = `Voice: ${reply}`;
+}
+
 function renderSave(save, version) {
   if (seenVersion != null && version != null && version !== seenVersion) burst = 1;
   if (version != null) seenVersion = version;
@@ -415,6 +437,7 @@ function apply(msg) {
   renderPhones(msg.phones || msg.clients || []);
   if (msg.lossHistory) renderHistory(msg.lossHistory);
   renderSave(msg.lastSave, msg.version);
+  renderRelay(msg.messages || []);
   if (msg.weightsB64) $('weights').textContent = '36,096 weights saved in Orca';
 }
 
