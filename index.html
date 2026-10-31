@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>quectoGPT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Anybody:wght@800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0c;
+    --bg-raised: #111114;
+    --bg-panel: #0d0d10;
+    --border: #1a1a22;
+    --border-glow: #22ff6622;
+    --text: #b8b8c0;
+    --text-dim: #55555f;
+    --text-bright: #e0e0e8;
+    --accent: #22ff66;
+    --accent-dim: #22ff6633;
+    --accent-mid: #22ff6688;
+    --red: #ff4444;
+    --amber: #ffaa22;
+    --trace: #22ff66;
+    --trace-shadow: #22ff6644;
+    --grid: #151520;
+    --scanline: rgba(255,255,255,0.015);
+  }
+
+  html { font-size: 14px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* CRT scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      var(--scanline) 2px,
+      var(--scanline) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .shell {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem 3rem;
+  }
+
+  .page-layout {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .main-col { min-width: 0; }
+
+  .sidebar-col {
+    position: sticky;
+    top: 1.5rem;
+  }
+
+  /* --- Header --- */
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 100;
+    font-size: 1.4rem;
+    letter-spacing: -0.05em;
+    color: var(--accent);
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .logo span {
+    color: var(--accent);
+    font-weight: 900;
+  }
+
+  .badges {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--bg-panel);
+  }
+
+  .badge.active {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .badge.active .dot {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* --- Stats Strip --- */
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-cell {
+    background: var(--bg-panel);
+    padding: 0.75rem 1rem;
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 0.25rem;
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--text-bright);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-value.loss {
+    color: var(--accent);
+    text-shadow: 0 0 12px var(--accent-dim);
+  }
+
+  /* --- Chart Area --- */
+  .chart-section {
+    display: grid;
+    grid-template-columns: 1fr 160px;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    background: var(--bg-panel);
+  }
+
+  .chart-wrap {
+    position: relative;
+    height: 320px;
+    border-right: 1px solid var(--border);
+  }
+
+  .chart-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .chart-label {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.8rem;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+
+  .chart-sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1.5rem;
+    gap: 0.4rem;
+  }
+
+  .loss-big-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+
+  .loss-big {
+    font-family: 'Anybody', sans-serif;
+    font-weight: 900;
+    font-size: 2.6rem;
+    color: var(--accent);
+    text-shadow: 0 0 40px var(--accent-dim), 0 0 8px var(--accent-mid);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .loss-big.idle {
+    color: var(--text-dim);
+    text-shadow: none;
+  }
+
+  .loss-delta {
+    font-size: 0.75rem;
+    color: var(--accent);
+  }
+
+  .loss-delta.up { color: var(--red); }
+
+  /* --- Controls --- */
+  .controls {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0.55rem 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-panel);
+    color: var(--text);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+  }
+
+  .btn:hover {
+    border-color: var(--accent-dim);
+    color: var(--text-bright);
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn.primary:hover {
+    background: #33ff77;
+    box-shadow: 0 0 20px var(--accent-dim);
+  }
+
+  .btn.danger {
+    border-color: #ff444444;
+    color: var(--red);
+  }
+
+  .btn.danger:hover {
+    border-color: var(--red);
+    background: #ff444411;
+  }
+
+  .btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+
+  .control-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  .input-field {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    padding: 0.45rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--text-bright);
+    width: 80px;
+    text-align: right;
+  }
+
+  .input-field:focus {
+    outline: none;
+    border-color: var(--accent-dim);
+  }
+
+  /* Toggle */
+  .toggle-wrap {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .toggle-opt {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.45rem 0.8rem;
+    background: var(--bg-panel);
+    color: var(--text-dim);
+    border: none;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.15s;
+  }
+
+  .toggle-opt + .toggle-opt { border-left: 1px solid var(--border); }
+
+  .toggle-opt.selected {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+  }
+
+  .toggle-opt:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* --- Samples Panel --- */
+  .samples-section {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .samples-header {
+    padding: 0.7rem 1rem;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-bright);
+  }
+
+  .samples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--border);
+  }
+
+  .sample-item {
+    background: var(--bg-panel);
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .sample-idx {
+    font-size: 0.65rem;
+    color: var(--accent-mid);
+    min-width: 1.6rem;
+  }
+
+  .sample-text {
+    color: var(--text-bright);
+    font-size: 0.85rem;
+    font-weight: 400;
+  }
+
+  .samples-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    background: var(--bg-panel);
+  }
+
+  /* --- Progress bar --- */
+  .progress-wrap {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-mid);
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  /* Sidebar */
+  .sidebar-section {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+  }
+  .sidebar-section-header {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .lobby-card {
+    background: var(--bg-panel);
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .lobby-card + .lobby-card {
+    border-top: 1px solid var(--border);
+  }
+  .lobby-card-title {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin-bottom: 0.1rem;
+    font-weight: 500;
+  }
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    justify-content: space-between;
+  }
+  .field-row .input-field { text-align: right; font-size: 0.72rem; }
+  .field-row .control-label { font-size: 0.6rem; }
+
+  /* Session info in sidebar */
+  .session-info {
+    background: var(--bg-panel);
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .session-id-wrap { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+  .sess-id-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+  }
+  .sess-countdown {
+    font-size: 0.68rem;
+    color: var(--amber);
+    font-variant-numeric: tabular-nums;
+  }
+  .sess-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  /* Submit request banner */
+  .submit-banner {
+    background: #ffaa2215;
+    border-top: 1px solid #ffaa2244;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.7rem;
+    color: var(--amber);
+    letter-spacing: 0.04em;
+  }
+
+  /* Devices list in sidebar */
+  .devices-header {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .device-item {
+    padding: 0.4rem 0.8rem;
+    border-bottom: 1px solid #111116;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    background: var(--bg-panel);
+  }
+  .device-item:last-child { border-bottom: none; }
+  .device-id {
+    font-size: 0.68rem;
+    color: var(--text-bright);
+    font-variant-numeric: tabular-nums;
+  }
+  .device-you {
+    font-size: 0.55rem;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+  }
+  .device-name {
+    font-size: 0.65rem;
+    color: var(--text);
+  }
+  .device-time {
+    font-size: 0.55rem;
+    color: var(--text-dim);
+  }
+  .device-empty {
+    padding: 0.8rem;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    background: var(--bg-panel);
+  }
+
+  /* Session chart in main area */
+  .session-chart-wrap {
+    margin-bottom: 1.5rem;
+  }
+  .session-chart-wrap .chart-section {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  /* --- Responsive --- */
+  @media (max-width: 900px) {
+    .page-layout { grid-template-columns: 1fr; }
+    .sidebar-col { position: static; }
+  }
+  @media (max-width: 700px) {
+    .shell { padding: 1rem; }
+    .chart-section { grid-template-columns: 1fr; }
+    .chart-sidebar { border-top: 1px solid var(--border); flex-direction: row; padding: 1rem; }
+    .chart-wrap { height: 240px; border-right: none; }
+    .control-group { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <a href="index.html" class="logo">quecto<span>GPT</span></a>
+    <nav style="display:flex;gap:0.2rem">
+      <a href="index.html" style="font-size:0.72rem;padding:0.25rem 0.7rem;border:1px solid var(--accent-dim);border-radius:3px;color:var(--accent);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em;background:var(--accent-dim);">Train</a>
+      <a href="bench.html" style="font-size:0.72rem;padding:0.25rem 0.7rem;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);text-decoration:none;text-transform:uppercase;letter-spacing:0.08em;background:var(--bg-panel);">Bench</a>
+    </nav>
+    <div class="badges">
+      <div class="badge" id="badge-backend"><span class="dot"></span>CPU</div>
+      <div class="badge" id="badge-params"><span class="dot"></span>— params</div>
+      <div class="badge" id="badge-vocab"><span class="dot"></span>vocab —</div>
+    </div>
+  </header>
+
+  <div class="page-layout">
+  <div class="main-col">
+
+  <!-- Session chart (shown when connected) -->
+  <div id="session-chart-area" hidden>
+    <div class="session-chart-wrap">
+      <div class="chart-section">
+        <div class="chart-wrap">
+          <span class="chart-label" id="sess-chart-label">avg loss / round</span>
+          <canvas id="sess-chart"></canvas>
+        </div>
+        <div class="chart-sidebar">
+          <div class="loss-big-label">avg loss</div>
+          <div class="loss-big idle" id="sess-loss-big">—</div>
+          <div class="loss-delta" id="sess-loss-delta">&nbsp;</div>
+        </div>
+      </div>
+    </div>
+    <div id="banner-submit" hidden class="submit-banner">
+      Round ending — submit training results
+    </div>
+  </div>
+
+  <div class="progress-wrap"><div class="progress-bar" id="progress"></div></div>
+
+  <div class="stats-strip">
+    <div class="stat-cell">
+      <div class="stat-label">Step</div>
+      <div class="stat-value" id="stat-step">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Train Loss</div>
+      <div class="stat-value loss" id="stat-loss">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Val Loss</div>
+      <div class="stat-value" id="stat-val-loss" style="color:var(--red)">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Steps/sec</div>
+      <div class="stat-value" id="stat-speed">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Elapsed</div>
+      <div class="stat-value" id="stat-elapsed">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Status</div>
+      <div class="stat-value" id="stat-status">idle</div>
+    </div>
+  </div>
+
+  <div class="chart-section">
+    <div class="chart-wrap">
+      <span class="chart-label">loss / step &nbsp; <span style="color:var(--accent)">&#9644; train</span> &nbsp; <span style="color:var(--red)">&#9644; val</span></span>
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="chart-sidebar">
+      <div class="loss-big-label">current loss</div>
+      <div class="loss-big idle" id="loss-big">—</div>
+      <div class="loss-delta" id="loss-delta">&nbsp;</div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls-bar">
+    <button class="btn primary" id="btn-start">Start Training</button>
+    <button class="btn danger" id="btn-stop" disabled>Stop</button>
+
+    <div class="control-group">
+      <span class="control-label">Backend</span>
+      <div class="toggle-wrap">
+        <button class="toggle-opt selected" id="tog-cpu">CPU</button>
+        <button class="toggle-opt" id="tog-gpu" disabled>WebGPU</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Dataset</span>
+      <select class="input-field" id="input-dataset" style="width:auto;text-align:left">
+        <option value="names">names</option>
+        <option value="shakespeare" selected>shakespeare</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Model</span>
+      <select class="input-field" id="input-model" style="width:auto;text-align:left">
+        <option value="nano">nano (~4K)</option>
+        <option value="tiny" selected>tiny (~50K)</option>
+        <option value="small">small (~500K)</option>
+        <option value="medium">medium (~4M)</option>
+        <option value="large">large (~25M)</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Steps</span>
+      <input type="number" class="input-field" id="input-steps" value="9999" min="1" max="50000" placeholder="auto">
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Val every</span>
+      <input type="number" class="input-field" id="input-valevery" value="25" min="1" max="50000" placeholder="auto">
+    </div>
+
+    <div class="control-group">
+      <span class="control-label">Prompt</span>
+      <input type="text" class="input-field" id="input-prompt" value="to be" placeholder="(optional)" style="width:140px;text-align:left">
+    </div>
+  </div>
+
+  <div class="samples-section">
+    <div class="samples-header">Generated Samples</div>
+    <div id="samples-body">
+      <div class="samples-empty">Train the model to generate names</div>
+    </div>
+  </div>
+
+  </div><!-- /main-col -->
+
+  <div class="sidebar-col">
+    <!-- LOBBY: shown when not in a session -->
+    <div id="panel-lobby">
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">Distributed Training</div>
+        <div class="lobby-card">
+          <div class="lobby-card-title">New Session</div>
+          <div class="field-row">
+            <label class="control-label">Quorum</label>
+            <input class="input-field" id="new-quorum" type="number" value="2" min="1" style="width:50px">
+          </div>
+          <div class="field-row">
+            <label class="control-label">Round (s)</label>
+            <input class="input-field" id="new-round" type="number" value="15" min="5" style="width:50px">
+          </div>
+          <div class="field-row">
+            <label class="control-label">Grace (s)</label>
+            <input class="input-field" id="new-grace" type="number" value="3" min="1" style="width:50px">
+          </div>
+          <button class="btn primary" id="btn-new-session" style="width:100%;margin-top:0.25rem">Start Session</button>
+        </div>
+        <div class="lobby-card">
+          <div class="lobby-card-title">Join Session</div>
+          <div class="field-row">
+            <label class="control-label">Session ID</label>
+            <input class="input-field" id="join-id" type="text" placeholder="paste id…" style="width:100%;text-align:left;font-size:0.68rem">
+          </div>
+          <div class="field-row">
+            <label class="control-label">Device name</label>
+            <input class="input-field" id="join-name" type="text" style="width:100%;text-align:left;font-size:0.68rem">
+          </div>
+          <button class="btn primary" id="btn-join-session" style="width:100%;margin-top:0.25rem">Join</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SESSION: shown when connected -->
+    <div id="panel-session" hidden>
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">Session</div>
+        <div class="session-info">
+          <div class="session-id-wrap">
+            <code id="sess-id" class="sess-id-text"></code>
+            <button class="btn" id="btn-copy-id" style="padding:0.15rem 0.4rem;font-size:0.6rem">copy</button>
+          </div>
+          <div class="sess-meta-row">
+            <span class="badge" id="sess-version" style="font-size:0.6rem;padding:0.15rem 0.4rem"><span class="dot"></span>v0</span>
+            <span id="sess-countdown" class="sess-countdown"></span>
+          </div>
+          <div style="font-size:0.65rem;color:var(--text-dim)" id="sess-round-status">0 / — submitted</div>
+          <button class="btn danger" id="btn-leave" style="width:100%;font-size:0.7rem;padding:0.4rem">Leave</button>
+        </div>
+        <div class="devices-header">Devices</div>
+        <div id="devices-list"><div class="device-empty">No devices connected</div></div>
+      </div>
+    </div>
+  </div><!-- /sidebar-col -->
+
+  </div><!-- /page-layout -->
+</div>
+
+<script type="importmap">
+{ "imports": {
+    "@jax-js/jax":   "./node_modules/@jax-js/jax/dist/index.js",
+    "@jax-js/optax": "./node_modules/@jax-js/optax/dist/index.js"
+}}
+</script>
+<script type="module">
+import { init, defaultDevice } from '@jax-js/jax';
+import { train, buildBPETokenizer } from './train.js';
+
+// --- State ---
+let running = false;
+let abortFlag = false;
+let lossHistory = [];
+let valLossHistory = []; // { step, loss } pairs
+let selectedBackend = 'cpu';
+let hasWebGPU = false;
+let jaxDevices = [];
+
+// --- Session state ---
+let inSession = false;
+let ws = null;
+let myClientId = null;
+let currentTrainId = null;
+let currentVersion = 0;
+let currentQuorum = 0;
+let currentSubmissions = 0;
+let currentDeadlineMs = null;
+let roundLossHistory = [];
+let liveLossHistory = [];  // [{avg_loss}] updated every second via live_loss
+let knownClients = [];
+let countdownTimer = null;
+let lossPingTimer = null;
+// Per-round training tracking
+let roundSteps = 0;
+let roundLossSum = 0;
+let roundTokens = 0;
+let submitPending = false;
+let roundStartFlat = null;    // flat weights at start of current round
+let trainingHandle = {};      // shared with train() to read live flat weights
+
+// In production, nginx proxies /train and /ws from the same origin (port 7011).
+// In local dev, the Deno server runs separately on localhost:4000.
+const _dev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const SERVER    = _dev ? 'http://localhost:4000' : location.origin;
+const SERVER_WS = _dev ? 'ws://localhost:4000/ws'
+                       : (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws';
+const DEFAULT_ROUND_SECS = 15;   // sync interval — round duration in seconds
+const DEFAULT_GRACE_SECS = 3;    // grace period before round closes
+
+// Auto-generate a memorable device name
+function randomDeviceName() {
+  const adj = ['amber','azure','brave','calm','coral','crisp','cyber','delta','dusty','ember',
+                'faint','fleet','frost','ghost','green','indigo','iron','lunar','moss','neon',
+                'nova','pixel','quick','radio','rapid','rogue','rouge','rust','sharp','silent',
+                'solar','sonic','stark','steel','storm','swift','tidal','toxic','ultra','vapor'];
+  const noun = ['badger','bat','bear','buck','cat','cobra','condor','crane','crow','deer',
+                'dove','eagle','elk','falcon','finch','fox','frog','hawk','heron','ibis',
+                'jay','kite','lynx','mink','mole','moose','moth','newt','orca','otter',
+                'owl','pike','puma','raven','robin','shark','skunk','slug','swan','wolf'];
+  const a = adj[Math.floor(Math.random() * adj.length)];
+  const n = noun[Math.floor(Math.random() * noun.length)];
+  return `${a}-${n}`;
+}
+
+// --- DOM refs ---
+const $ = id => document.getElementById(id);
+
+// Pre-fill device name
+$('join-name').value = randomDeviceName();
+
+// Auto-join from ?session=<id> URL param — handled after handlers are registered below
+const _urlSession = new URLSearchParams(location.search).get('session');
+if (_urlSession) $('join-id').value = _urlSession;
+const chart = $('chart');
+const ctx = chart.getContext('2d');
+
+// --- jax-js init + WebGPU detection ---
+(async () => {
+  try {
+    jaxDevices = await init();
+    if (jaxDevices.includes('webgpu')) {
+      hasWebGPU = true;
+      $('tog-gpu').disabled = false;
+      // Default to WebGPU when available
+      selectedBackend = 'gpu';
+      $('tog-gpu').classList.add('selected');
+      $('tog-cpu').classList.remove('selected');
+    }
+  } catch (e) {
+    console.warn('jax-js init:', e);
+  }
+})();
+
+// --- Backend toggle ---
+$('tog-cpu').onclick = () => {
+  if (running) return;
+  selectedBackend = 'cpu';
+  $('tog-cpu').classList.add('selected');
+  $('tog-gpu').classList.remove('selected');
+};
+$('tog-gpu').onclick = () => {
+  if (running || !hasWebGPU) return;
+  selectedBackend = 'gpu';
+  $('tog-gpu').classList.add('selected');
+  $('tog-cpu').classList.remove('selected');
+};
+
+// --- Chart rendering ---
+function drawChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = chart.parentElement.getBoundingClientRect();
+  chart.width = rect.width * dpr;
+  chart.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+
+  // Background
+  ctx.fillStyle = '#0d0d10';
+  ctx.fillRect(0, 0, W, H);
+
+  if (lossHistory.length < 2) {
+    // Empty state grid
+    drawGrid(W, H, 0, 4, 0, 100);
+    return;
+  }
+
+  const pad = { top: 28, right: 16, bottom: 28, left: 48 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  let minL = Infinity, maxL = -Infinity;
+  for (const v of lossHistory) {
+    if (v < minL) minL = v;
+    if (v > maxL) maxL = v;
+  }
+  for (const { loss: vl } of valLossHistory) {
+    if (vl < minL) minL = vl;
+    if (vl > maxL) maxL = vl;
+  }
+  // Add 10% padding
+  const range = maxL - minL || 1;
+  minL -= range * 0.05;
+  maxL += range * 0.05;
+
+  // Grid
+  drawGrid(W, H, minL, maxL, 0, lossHistory.length - 1, pad);
+
+  // Trace glow (wider, dimmer pass)
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(34, 255, 102, 0.15)';
+  ctx.lineWidth = 6;
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < lossHistory.length; i++) {
+    const x = pad.left + (i / (lossHistory.length - 1)) * plotW;
+    const y = pad.top + (1 - (lossHistory[i] - minL) / (maxL - minL)) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Trace line
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = '#22ff66';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = '#22ff66';
+  ctx.shadowBlur = 4;
+  for (let i = 0; i < lossHistory.length; i++) {
+    const x = pad.left + (i / (lossHistory.length - 1)) * plotW;
+    const y = pad.top + (1 - (lossHistory[i] - minL) / (maxL - minL)) * plotH;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Current point dot
+  const lastX = pad.left + plotW;
+  const lastY = pad.top + (1 - (lossHistory[lossHistory.length - 1] - minL) / (maxL - minL)) * plotH;
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#22ff66';
+  ctx.shadowColor = '#22ff66';
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Val loss line (amber)
+  if (valLossHistory.length >= 2) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = '#ff4444';
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.setLineDash([4, 3]);
+    for (let i = 0; i < valLossHistory.length; i++) {
+      const { step, loss: vl } = valLossHistory[i];
+      const x = pad.left + (step / (lossHistory.length - 1)) * plotW;
+      const y = pad.top + (1 - (vl - minL) / (maxL - minL)) * plotH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+function drawGrid(W, H, minY, maxY, minX, maxX, pad) {
+  pad = pad || { top: 28, right: 16, bottom: 28, left: 48 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  ctx.strokeStyle = '#151520';
+  ctx.lineWidth = 0.5;
+
+  // Horizontal grid lines (5 lines)
+  const nH = 5;
+  ctx.font = '10px "IBM Plex Mono"';
+  ctx.fillStyle = '#55555f';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= nH; i++) {
+    const y = pad.top + (i / nH) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + plotW, y);
+    ctx.stroke();
+    const val = maxY - (i / nH) * (maxY - minY);
+    ctx.fillText(val.toFixed(2), pad.left - 6, y);
+  }
+
+  // Vertical grid lines
+  const nV = 5;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let i = 0; i <= nV; i++) {
+    const x = pad.left + (i / nV) * plotW;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + plotH);
+    ctx.stroke();
+    const val = Math.round(minX + (i / nV) * (maxX - minX));
+    ctx.fillText(val, x, pad.top + plotH + 6);
+  }
+}
+
+// --- UI update ---
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function updateStats(data) {
+  $('stat-step').textContent = `${data.step} / ${data.totalSteps}`;
+  $('stat-loss').textContent = data.loss.toFixed(4);
+  if (data.valLoss !== undefined) {
+    $('stat-val-loss').textContent = data.valLoss.toFixed(4);
+  }
+  $('progress').style.width = `${(data.step / data.totalSteps) * 100}%`;
+
+  const bigEl = $('loss-big');
+  bigEl.textContent = data.loss.toFixed(2);
+  bigEl.classList.remove('idle');
+
+  if (lossHistory.length >= 2) {
+    const prev = lossHistory[lossHistory.length - 2];
+    const delta = data.loss - prev;
+    const deltaEl = $('loss-delta');
+    deltaEl.textContent = (delta < 0 ? '' : '+') + delta.toFixed(4);
+    deltaEl.classList.toggle('up', delta > 0);
+  }
+}
+
+function showSamples(samples, step) {
+  const body = $('samples-body');
+  if (!samples || samples.length === 0) return;
+
+  // Clear placeholder
+  const empty = body.querySelector('.samples-empty');
+  if (empty) empty.remove();
+
+  const block = document.createElement('div');
+  block.style.cssText = 'border-top:2px solid var(--accent);margin-bottom:0;';
+
+  const header = document.createElement('div');
+  header.style.cssText = 'padding:0.5rem 1rem;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);background:var(--bg);border-bottom:1px solid var(--border);font-weight:500;';
+  header.textContent = step != null ? `step ${step}` : 'final';
+  block.appendChild(header);
+
+  const grid = document.createElement('div');
+  grid.className = 'samples-grid';
+  grid.innerHTML = samples.map((s, i) =>
+    `<div class="sample-item">
+      <span class="sample-idx">${String(i + 1).padStart(2, '0')}</span>
+      <span class="sample-text">${escHtml(s) || '<empty>'}</span>
+    </div>`
+  ).join('');
+  block.appendChild(grid);
+
+  // Prepend — newest on top
+  body.insertBefore(block, body.firstChild);
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// --- Session chart canvas ---
+const sessChart = $('sess-chart');
+const sessCtx = sessChart.getContext('2d');
+
+function drawSessChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = sessChart.parentElement.getBoundingClientRect();
+  sessChart.width = rect.width * dpr;
+  sessChart.height = rect.height * dpr;
+  sessCtx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+
+  sessCtx.fillStyle = '#0d0d10';
+  sessCtx.fillRect(0, 0, W, H);
+
+  // Use live loss for the continuous line; fall back to round history if no live data yet
+  const data = liveLossHistory.length >= 1 ? liveLossHistory : roundLossHistory.map(e => e.avg_loss);
+  if (data.length < 2) {
+    drawSessGrid(W, H, 0, 4, 0, 10);
+    return;
+  }
+
+  const pad = { top: 28, right: 16, bottom: 28, left: 48 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  let minL = Infinity, maxL = -Infinity;
+  for (const v of data) { if (v < minL) minL = v; if (v > maxL) maxL = v; }
+  const range = maxL - minL || 1;
+  minL -= range * 0.05;
+  maxL += range * 0.05;
+
+  const minX = 0;
+  const maxX = data.length - 1;
+  drawSessGrid(W, H, minL, maxL, minX, maxX, pad);
+
+  sessCtx.save();
+  sessCtx.beginPath();
+  sessCtx.strokeStyle = 'rgba(34, 255, 102, 0.15)';
+  sessCtx.lineWidth = 6;
+  sessCtx.lineJoin = 'round';
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / (data.length - 1)) * plotW;
+    const y = pad.top + (1 - (data[i] - minL) / (maxL - minL)) * plotH;
+    if (i === 0) sessCtx.moveTo(x, y); else sessCtx.lineTo(x, y);
+  }
+  sessCtx.stroke();
+  sessCtx.restore();
+
+  sessCtx.save();
+  sessCtx.beginPath();
+  sessCtx.strokeStyle = '#22ff66';
+  sessCtx.lineWidth = 1.5;
+  sessCtx.lineJoin = 'round';
+  sessCtx.shadowColor = '#22ff66';
+  sessCtx.shadowBlur = 4;
+  for (let i = 0; i < data.length; i++) {
+    const x = pad.left + (i / (data.length - 1)) * plotW;
+    const y = pad.top + (1 - (data[i] - minL) / (maxL - minL)) * plotH;
+    if (i === 0) sessCtx.moveTo(x, y); else sessCtx.lineTo(x, y);
+  }
+  sessCtx.stroke();
+  sessCtx.restore();
+
+  const lastX = pad.left + plotW;
+  const lastY = pad.top + (1 - (data[data.length - 1] - minL) / (maxL - minL)) * plotH;
+  sessCtx.beginPath();
+  sessCtx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+  sessCtx.fillStyle = '#22ff66';
+  sessCtx.shadowColor = '#22ff66';
+  sessCtx.shadowBlur = 10;
+  sessCtx.fill();
+  sessCtx.shadowBlur = 0;
+}
+
+function drawSessGrid(W, H, minY, maxY, minX, maxX, pad) {
+  pad = pad || { top: 28, right: 16, bottom: 28, left: 48 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  sessCtx.strokeStyle = '#151520';
+  sessCtx.lineWidth = 0.5;
+
+  const nH = 5;
+  sessCtx.font = '10px "IBM Plex Mono"';
+  sessCtx.fillStyle = '#55555f';
+  sessCtx.textAlign = 'right';
+  sessCtx.textBaseline = 'middle';
+  for (let i = 0; i <= nH; i++) {
+    const y = pad.top + (i / nH) * plotH;
+    sessCtx.beginPath();
+    sessCtx.moveTo(pad.left, y);
+    sessCtx.lineTo(pad.left + plotW, y);
+    sessCtx.stroke();
+    const val = maxY - (i / nH) * (maxY - minY);
+    sessCtx.fillText(val.toFixed(2), pad.left - 6, y);
+  }
+
+  const nV = 5;
+  sessCtx.textAlign = 'center';
+  sessCtx.textBaseline = 'top';
+  for (let i = 0; i <= nV; i++) {
+    const x = pad.left + (i / nV) * plotW;
+    sessCtx.beginPath();
+    sessCtx.moveTo(x, pad.top);
+    sessCtx.lineTo(x, pad.top + plotH);
+    sessCtx.stroke();
+    const val = Math.round(minX + (i / nV) * (maxX - minX));
+    sessCtx.fillText(`r${val}`, x, pad.top + plotH + 6);
+  }
+}
+
+// --- Session functions ---
+function enterSession(trainId) {
+  currentTrainId = trainId;
+  inSession = true;
+  $('panel-lobby').hidden = true;
+  $('panel-session').hidden = false;
+  $('session-chart-area').hidden = false;
+  $('controls-bar').hidden = true;
+  $('sess-id').textContent = trainId;
+  roundLossHistory = [];
+  liveLossHistory = [];
+  drawSessChart();
+  history.replaceState(null, '', `?session=${trainId}`);
+}
+
+function leaveSession() {
+  if (ws) { ws.close(); ws = null; }
+  clearInterval(countdownTimer); countdownTimer = null;
+  clearInterval(lossPingTimer); lossPingTimer = null;
+  inSession = false;
+  myClientId = null;
+  currentTrainId = null;
+  currentVersion = 0;
+  currentQuorum = 0;
+  currentSubmissions = 0;
+  currentDeadlineMs = null;
+  roundLossHistory = [];
+  liveLossHistory = [];
+  knownClients = [];
+  abortFlag = true;
+  $('panel-lobby').hidden = false;
+  $('panel-session').hidden = true;
+  $('session-chart-area').hidden = true;
+  $('controls-bar').hidden = false;
+  $('banner-submit').hidden = true;
+  roundSteps = 0; roundLossSum = 0; roundTokens = 0;
+  submitPending = false; roundStartFlat = null;
+  history.replaceState(null, '', location.pathname);
+  $('join-name').value = randomDeviceName();
+}
+
+async function connectWebSocket(trainId, name) {
+  ws = new WebSocket(SERVER_WS);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'join', train_id: trainId, name }));
+    enterSession(trainId);
+    countdownTimer = setInterval(updateCountdown, 500);
+  };
+  // First update from server is the authoritative initial state — use it to start training.
+  // Subsequent messages go through the normal handler.
+  let trainingStarted = false;
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (!trainingStarted && msg.type === 'update') {
+      trainingStarted = true;
+      // Apply initial state (version, deadline) without triggering a training restart
+      currentVersion = msg.payload.version;
+      currentDeadlineMs = msg.payload.deadline_ms;
+      $('sess-version').innerHTML = `<span class="dot"></span>v${currentVersion}`;
+      updateRoundStatus();
+      // Start training from server's authoritative weights ([] = round 0, populated = round N)
+      startFederatedTraining(msg.payload.weights || []);
+    } else {
+      handleWsMessage(msg);
+    }
+  };
+  ws.onclose = ws.onerror = () => leaveSession();
+}
+
+function handleWsMessage(msg) {
+  if (msg.type === 'join_ack') {
+    myClientId = msg.client_id;
+    renderDevices();
+  }
+  if (msg.type === 'update') {
+    currentVersion = msg.payload.version;
+    currentDeadlineMs = msg.payload.deadline_ms;
+    currentSubmissions = 0;
+    if (msg.payload.avg_loss != null) {
+      roundLossHistory.push({ version: msg.payload.version - 1, avg_loss: msg.payload.avg_loss });
+      const lossEl = $('sess-loss-big');
+      lossEl.textContent = msg.payload.avg_loss.toFixed(2);
+      lossEl.classList.remove('idle');
+    }
+    $('sess-version').innerHTML = `<span class="dot"></span>v${currentVersion}`;
+    $('sess-version').classList.add('active');
+    updateRoundStatus();
+    drawSessChart();
+    $('banner-submit').hidden = true;
+    // On genuine round completion, restart training with new global weights
+    if (msg.payload.avg_loss != null && msg.payload.weights?.length > 0) {
+      startFederatedTraining(msg.payload.weights);
+    }
+  }
+  if (msg.type === 'clients_changed') {
+    knownClients = msg.clients;
+    renderDevices();
+  }
+  if (msg.type === 'submit_request') {
+    $('banner-submit').hidden = false;
+    submitPending = true;
+  }
+  if (msg.type === 'live_loss') {
+    liveLossHistory.push(msg.avg_loss);
+    const lossEl = $('sess-loss-big');
+    lossEl.textContent = msg.avg_loss.toFixed(3);
+    lossEl.classList.remove('idle');
+    drawSessChart();
+  }
+  if (msg.type === 'publish_ack') {
+    currentSubmissions = msg.submissions;
+    currentQuorum = msg.quorum;
+    updateRoundStatus();
+  }
+}
+
+function renderDevices() {
+  const list = $('devices-list');
+  if (knownClients.length === 0) {
+    list.innerHTML = '<div class="device-empty">No devices connected</div>';
+    return;
+  }
+  list.innerHTML = knownClients.map(c => {
+    const isMe = c.client_id === myClientId;
+    const ago = Math.round((Date.now() - c.joined_at) / 1000);
+    const agoStr = ago < 60 ? `${ago}s ago` : `${Math.floor(ago / 60)}m ago`;
+    return `<div class="device-item${isMe ? ' device-item-me' : ''}">
+      <span class="device-id">${escHtml(c.client_id.slice(0, 8))}${isMe ? '<span class="device-you"> you</span>' : ''}</span>
+      ${c.name ? `<span class="device-name">${escHtml(c.name)}</span>` : ''}
+      <span class="device-time">${agoStr}</span>
+    </div>`;
+  }).join('');
+}
+
+function updateCountdown() {
+  if (!currentDeadlineMs) return;
+  const remaining = Math.max(0, currentDeadlineMs - Date.now());
+  const s = Math.ceil(remaining / 1000);
+  $('sess-countdown').textContent = `round ends in ${s}s`;
+}
+
+function updateRoundStatus() {
+  $('sess-round-status').textContent = `${currentSubmissions} / ${currentQuorum || '—'} submitted`;
+}
+
+// --- Federated training ---
+function submitDelta() {
+  if (!ws || roundSteps === 0 || ws.readyState !== WebSocket.OPEN) return;
+  const currentFlat = trainingHandle.getFlat ? trainingHandle.getFlat() : null;
+  if (!currentFlat) return;
+  let delta;
+  if (roundStartFlat && roundStartFlat.length === currentFlat.length) {
+    delta = Array.from(currentFlat).map((v, i) => v - roundStartFlat[i]);
+  } else {
+    delta = Array.from(currentFlat); // first round: send full params as delta
+  }
+  const avgLoss = roundLossSum / roundSteps;
+  ws.send(JSON.stringify({
+    type: 'publish',
+    train_id: currentTrainId,
+    payload: {
+      publish_id: crypto.randomUUID(),
+      base_version: currentVersion,
+      delta,
+      steps: roundSteps,
+      tokens: Math.max(1, roundTokens),
+      loss: avgLoss,
+    }
+  }));
+  roundStartFlat = currentFlat;
+  roundSteps = 0; roundLossSum = 0; roundTokens = 0;
+}
+
+async function startFederatedTraining(initialWeights) {
+  // Abort any running training, wait for it to stop
+  if (running) {
+    abortFlag = true;
+    while (running) await new Promise(r => setTimeout(r, 50));
+  }
+  running = true;
+  abortFlag = false;
+  trainingHandle = {};
+  roundSteps = 0; roundLossSum = 0; roundTokens = 0;
+  roundStartFlat = initialWeights?.length > 0 ? new Float32Array(initialWeights) : null;
+
+  $('stat-status').textContent = 'loading data…';
+
+  try {
+    const dataset = $('input-dataset').value;
+    const tokJson = await fetch(`data/${dataset}.tok.json`).then(r => r.json());
+    const tokenizer = buildBPETokenizer(tokJson.merges);
+    const trainData = new Uint16Array(await fetch(`data/${dataset}.train.bin`).then(r => r.arrayBuffer()));
+    const valData = new Uint16Array(await fetch(`data/${dataset}.val.bin`).then(r => r.arrayBuffer()));
+
+    const device = selectedBackend === 'gpu' ? 'webgpu' : 'wasm';
+    defaultDevice(device);
+
+    const model = $('input-model').value;
+    const t0 = performance.now();
+    let stepCount = 0;
+    let lastLoss = null;
+    let pingTokens = 0;
+
+    $('stat-status').textContent = 'training';
+
+    // Send token-weighted live loss to server every second
+    clearInterval(lossPingTimer);
+    lossPingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN && lastLoss !== null && pingTokens > 0) {
+        ws.send(JSON.stringify({ type: 'loss_ping', train_id: currentTrainId, loss: lastLoss, tokens: pingTokens }));
+        pingTokens = 0;
+      }
+    }, 1000);
+
+    const promptVal = $('input-prompt').value.trim();
+    const valEveryVal = parseInt($('input-valevery').value.trim()) || undefined;
+    const gen = train(device, trainData, valData, tokenizer, { model, handle: trainingHandle, initialWeights, steps: 999999, seed: 0, ...(promptVal && { prompt: promptVal }), ...(valEveryVal && { valEvery: valEveryVal }) });
+
+    for await (const event of gen) {
+      if (!inSession || abortFlag) break;
+
+      if (event.type === 'init') {
+        $('badge-backend').innerHTML = `<span class="dot"></span>${event.backend.toUpperCase()}`;
+        $('badge-backend').classList.add('active');
+        $('badge-params').innerHTML = `<span class="dot"></span>${event.paramCount.toLocaleString()} params`;
+        $('badge-vocab').innerHTML = `<span class="dot"></span>vocab ${event.vocabSize}`;
+      }
+
+      if (event.type === 'step') {
+        stepCount++;
+        lastLoss = event.loss;
+        pingTokens += event.batchSize ?? 8;
+        lossHistory.push(event.loss);
+        roundSteps++;
+        roundLossSum += event.loss;
+        roundTokens += event.batchSize ?? 8;
+        updateStats(event);
+        const elapsed = performance.now() - t0;
+        $('stat-elapsed').textContent = formatTime(elapsed);
+        $('stat-speed').textContent = (stepCount / (elapsed / 1000)).toFixed(1);
+        if (stepCount % 5 === 0) drawChart();
+        if (stepCount % 2 === 0) await new Promise(r => requestAnimationFrame(r));
+
+        // Update session chart locally every 5 steps (no server roundtrip needed)
+        liveLossHistory.push(event.loss);
+        if (stepCount % 5 === 0) drawSessChart();
+
+        if (event.samples) showSamples(event.samples);
+
+        if (submitPending) {
+          submitPending = false;
+          submitDelta();
+          $('banner-submit').hidden = true;
+          abortFlag = true;
+          break;
+        }
+      }
+
+      if (event.type === 'done') {
+        showSamples(event.samples);
+        drawSessChart();
+      }
+    }
+
+    clearInterval(lossPingTimer);
+
+    $('stat-status').textContent = inSession ? 'training' : 'stopped';
+  } catch (err) {
+    $('stat-status').textContent = 'error';
+    console.error(err);
+    $('samples-body').innerHTML = `<div class="samples-empty" style="color:var(--red)">${escHtml(err.message)}</div>`;
+  }
+
+  running = false;
+}
+
+// --- Session button handlers ---
+$('btn-new-session').onclick = async () => {
+  const quorum = parseInt($('new-quorum').value) || 2;
+  const round_duration_ms = (parseInt($('new-round').value) || DEFAULT_ROUND_SECS) * 1000;
+  const grace_period_ms = (parseInt($('new-grace').value) || DEFAULT_GRACE_SECS) * 1000;
+  try {
+    const res = await fetch(`${SERVER}/train`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weights: [], quorum, round_duration_ms, grace_period_ms }),
+    });
+    const { train_id } = await res.json();
+    currentQuorum = quorum;
+    const name = $('join-name').value.trim();
+    await connectWebSocket(train_id, name);
+  } catch (e) {
+    console.error('Failed to create session:', e);
+    alert('Could not reach server at ' + SERVER);
+  }
+};
+
+$('btn-join-session').onclick = async () => {
+  const trainId = $('join-id').value.trim();
+  if (!trainId) return;
+  try {
+    const status = await fetch(`${SERVER}/train/${trainId}`).then(r => r.json());
+    if (status.error) { alert('Session not found'); return; }
+    currentQuorum = status.quorum;
+    roundLossHistory = (status.loss_history || []).map(e => ({ version: e.version, avg_loss: e.avg_loss }));
+    const name = $('join-name').value.trim();
+    await connectWebSocket(trainId, name);
+  } catch (e) {
+    console.error('Failed to join session:', e);
+    alert('Could not reach server at ' + SERVER);
+  }
+};
+
+$('btn-leave').onclick = () => leaveSession();
+
+$('btn-copy-id').onclick = () => {
+  navigator.clipboard.writeText(currentTrainId);
+  $('btn-copy-id').textContent = 'copied!';
+  setTimeout(() => $('btn-copy-id').textContent = 'copy', 1500);
+};
+
+// Resize handler for session chart
+window.addEventListener('resize', () => { if (inSession) drawSessChart(); });
+
+// --- Training ---
+$('btn-start').onclick = async () => {
+  if (running) return;
+  running = true;
+  abortFlag = false;
+  lossHistory = [];
+  valLossHistory = [];
+
+  $('btn-start').disabled = true;
+  $('btn-stop').disabled = false;
+  $('tog-cpu').disabled = true;
+  $('tog-gpu').disabled = true;
+  $('input-model').disabled = true;
+  $('input-dataset').disabled = true;
+  $('stat-status').textContent = 'loading data…';
+  $('samples-body').innerHTML = '<div class="samples-empty">Training in progress…</div>';
+
+  try {
+    const dataset = $('input-dataset').value;
+
+    // Load tokenizer
+    const tokResp = await fetch(`data/${dataset}.tok.json`);
+    const tokJson = await tokResp.json();
+    const tokenizer = buildBPETokenizer(tokJson.merges);
+
+    // Load pre-tokenized binary data
+    const trainResp = await fetch(`data/${dataset}.train.bin`);
+    const trainData = new Uint16Array(await trainResp.arrayBuffer());
+    const valResp = await fetch(`data/${dataset}.val.bin`);
+    const valData = new Uint16Array(await valResp.arrayBuffer());
+
+    // Init backend
+    const device = selectedBackend === 'gpu' ? 'webgpu' : 'wasm';
+    defaultDevice(device);
+
+    const model = $('input-model').value;
+    const stepsVal = $('input-steps').value.trim();
+    const valEveryVal = $('input-valevery').value.trim();
+    const promptVal = $('input-prompt').value.trim();
+    const trainOpts = { model };
+    if (stepsVal) trainOpts.steps = parseInt(stepsVal);
+    if (valEveryVal) trainOpts.valEvery = parseInt(valEveryVal);
+    if (promptVal) trainOpts.prompt = promptVal;
+    const gen = train(device, trainData, valData, tokenizer, trainOpts);
+
+    const t0 = performance.now();
+    let stepCount = 0;
+
+    $('stat-status').textContent = 'training';
+
+    for await (const event of gen) {
+      if (abortFlag) break;
+
+      if (event.type === 'init') {
+        const bBadge = $('badge-backend');
+        bBadge.querySelector('.dot');
+        bBadge.textContent = '';
+        bBadge.innerHTML = `<span class="dot"></span>${event.backend.toUpperCase()}`;
+        bBadge.classList.add('active');
+
+        $('badge-params').innerHTML = `<span class="dot"></span>${event.paramCount.toLocaleString()} params`;
+        $('badge-vocab').innerHTML = `<span class="dot"></span>vocab ${event.vocabSize}`;
+      }
+
+      if (event.type === 'step') {
+        stepCount++;
+        lossHistory.push(event.loss);
+        if (event.valLoss !== undefined) {
+          valLossHistory.push({ step: stepCount - 1, loss: event.valLoss });
+        }
+        if (event.samples) {
+          showSamples(event.samples, event.step);
+        }
+        updateStats(event);
+
+        const elapsed = performance.now() - t0;
+        $('stat-elapsed').textContent = formatTime(elapsed);
+        $('stat-speed').textContent = (stepCount / (elapsed / 1000)).toFixed(1);
+
+        // Redraw chart at ~30fps max
+        if (stepCount % Math.max(1, Math.floor(event.totalSteps / 300)) === 0 || stepCount === event.totalSteps) {
+          drawChart();
+        }
+
+        // Yield to UI
+        if (stepCount % 2 === 0) {
+          await new Promise(r => requestAnimationFrame(r));
+        }
+      }
+
+      if (event.type === 'done') {
+        $('stat-status').textContent = 'done';
+        showSamples(event.samples, null);
+        drawChart();
+      }
+    }
+
+    if (abortFlag) {
+      $('stat-status').textContent = 'stopped';
+      drawChart();
+    }
+
+  } catch (err) {
+    $('stat-status').textContent = 'error';
+    console.error(err);
+    $('samples-body').innerHTML = `<div class="samples-empty" style="color:var(--red)">${escHtml(err.message)}</div>`;
+  }
+
+  running = false;
+  $('btn-start').disabled = false;
+  $('btn-stop').disabled = true;
+  $('tog-cpu').disabled = false;
+  $('tog-gpu').disabled = !hasWebGPU;
+  $('input-model').disabled = false;
+  $('input-dataset').disabled = false;
+};
+
+$('btn-stop').onclick = () => { abortFlag = true; };
+
+// Initial chart draw
+requestAnimationFrame(() => drawChart());
+window.addEventListener('resize', () => drawChart());
+
+// Auto-join if ?session= was in the URL (all handlers now registered)
+if (_urlSession) $('btn-join-session').click();
+</script>
+</body>
+</html>

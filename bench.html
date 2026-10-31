@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>quectoGPT — bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Anybody:wght@800;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0c;
+    --bg-raised: #111114;
+    --bg-panel: #0d0d10;
+    --border: #1a1a22;
+    --border-glow: #22ff6622;
+    --text: #b8b8c0;
+    --text-dim: #55555f;
+    --text-bright: #e0e0e8;
+    --accent: #22ff66;
+    --accent-dim: #22ff6633;
+    --accent-mid: #22ff6688;
+    --red: #ff4444;
+    --amber: #ffaa22;
+    --grid: #151520;
+    --scanline: rgba(255,255,255,0.015);
+    --pass: #22ff66;
+    --fail: #ff4444;
+  }
+
+  html { font-size: 14px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      var(--scanline) 2px,
+      var(--scanline) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .shell {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem 3rem;
+  }
+
+  /* --- Header --- */
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5rem;
+    padding-bottom: 1.2rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+    color: var(--text-bright);
+    line-height: 1;
+    text-decoration: none;
+  }
+
+  .logo span { color: var(--accent); font-weight: 600; }
+
+  nav {
+    display: flex;
+    gap: 0.2rem;
+  }
+
+  nav a {
+    font-size: 0.72rem;
+    padding: 0.25rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-dim);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--bg-panel);
+    transition: all 0.15s;
+  }
+
+  nav a:hover {
+    border-color: var(--accent-dim);
+    color: var(--text);
+  }
+
+  nav a.active {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .badges {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background: var(--bg-panel);
+  }
+
+  .badge.active {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  .badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+  }
+
+  .badge.active .dot {
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  /* --- Controls --- */
+  .controls {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 0.55rem 1.2rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg-panel);
+    color: var(--text);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+  }
+
+  .btn:hover {
+    border-color: var(--accent-dim);
+    color: var(--text-bright);
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn.primary:hover {
+    background: #33ff77;
+    box-shadow: 0 0 20px var(--accent-dim);
+  }
+
+  .btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+
+  .control-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  .toggle-wrap {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .toggle-opt {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.45rem 0.8rem;
+    background: var(--bg-panel);
+    color: var(--text-dim);
+    border: none;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.15s;
+  }
+
+  .toggle-opt + .toggle-opt { border-left: 1px solid var(--border); }
+
+  .toggle-opt.selected {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+  }
+
+  .toggle-opt:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* --- Progress --- */
+  .progress-wrap {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-mid);
+    width: 0%;
+    transition: width 0.15s linear;
+  }
+
+  /* --- Sections --- */
+  .section {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-header {
+    padding: 0.7rem 1rem;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .section-header .count {
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    font-size: 0.7rem;
+  }
+
+  .section-body {
+    background: var(--bg-panel);
+  }
+
+  .section-empty {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+  }
+
+  /* --- Test results --- */
+  .test-row {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.45rem 1rem;
+    border-bottom: 1px solid #111116;
+    font-size: 0.82rem;
+    animation: fade-in 0.2s ease;
+  }
+
+  .test-row:last-child { border-bottom: none; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateX(-4px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .test-icon {
+    font-size: 0.75rem;
+    width: 1.2rem;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .test-icon.pass { color: var(--pass); }
+  .test-icon.fail { color: var(--fail); }
+  .test-icon.running { color: var(--amber); animation: spin 1s linear infinite; }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .test-name {
+    color: var(--text-bright);
+    flex: 1;
+  }
+
+  .test-detail {
+    color: var(--text-dim);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .test-detail.pass { color: var(--accent-mid); }
+  .test-detail.fail { color: var(--red); }
+
+  /* --- Benchmark table --- */
+  .bench-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+
+  .bench-table th {
+    text-align: left;
+    padding: 0.55rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .bench-table td {
+    padding: 0.45rem 1rem;
+    border-bottom: 1px solid #111116;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+
+  .bench-table tr:last-child td { border-bottom: none; }
+
+  .bench-table .op-name { color: var(--text-bright); font-weight: 500; }
+  .bench-table .ms-val { color: var(--accent); text-align: right; }
+  .bench-table .size-val { color: var(--text-dim); }
+
+  .bench-table tr {
+    animation: fade-in 0.15s ease;
+  }
+
+  /* --- Training bench --- */
+  .train-results {
+    padding: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px;
+  }
+
+  .train-stat {
+    padding: 0.6rem 0.8rem;
+  }
+
+  .train-stat-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    margin-bottom: 0.2rem;
+  }
+
+  .train-stat-value {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-bright);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .train-stat-value.good { color: var(--accent); }
+  .train-stat-value.bad { color: var(--red); }
+
+  /* --- Summary bar --- */
+  .summary-bar {
+    display: flex;
+    gap: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+  }
+
+  .summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+  }
+
+  .summary-item .num {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .summary-item .num.pass { color: var(--pass); }
+  .summary-item .num.fail { color: var(--fail); }
+  .summary-item .label { color: var(--text-dim); }
+
+  /* --- Responsive --- */
+  @media (max-width: 700px) {
+    .shell { padding: 1rem; }
+    .control-group { margin-left: 0; }
+    .badges { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <a href="index.html" class="logo">quecto<span>GPT</span></a>
+    <nav>
+      <a href="index.html">Train</a>
+      <a href="bench.html" class="active">Bench</a>
+    </nav>
+    <div class="badges">
+      <div class="badge" id="badge-backend"><span class="dot"></span>CPU</div>
+      <div class="badge" id="badge-gpu-status"><span class="dot"></span>WebGPU —</div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-run">Run All</button>
+    <button class="btn" id="btn-correctness">Correctness Only</button>
+    <button class="btn" id="btn-benchmarks">Benchmarks Only</button>
+
+    <div class="control-group">
+      <span class="control-label">Backend</span>
+      <div class="toggle-wrap">
+        <button class="toggle-opt selected" id="tog-cpu">CPU</button>
+        <button class="toggle-opt" id="tog-gpu" disabled>WebGPU</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-wrap"><div class="progress-bar" id="progress"></div></div>
+
+  <div class="summary-bar" id="summary" style="display:none">
+    <div class="summary-item">
+      <span class="num pass" id="sum-pass">0</span>
+      <span class="label">passed</span>
+    </div>
+    <div class="summary-item">
+      <span class="num fail" id="sum-fail">0</span>
+      <span class="label">failed</span>
+    </div>
+    <div class="summary-item">
+      <span class="num" id="sum-total" style="color:var(--text-bright)">0</span>
+      <span class="label">total</span>
+    </div>
+    <div class="summary-item">
+      <span class="num" id="sum-time" style="color:var(--text)">—</span>
+      <span class="label">elapsed</span>
+    </div>
+  </div>
+
+  <!-- Correctness Tests -->
+  <div class="section" id="sec-correctness">
+    <div class="section-header">
+      Correctness Tests
+      <span class="count" id="correctness-count"></span>
+    </div>
+    <div class="section-body" id="correctness-body">
+      <div class="section-empty">Click "Run All" or "Correctness Only" to start</div>
+    </div>
+  </div>
+
+  <!-- Gradient Checks -->
+  <div class="section" id="sec-gradients">
+    <div class="section-header">
+      Gradient Checks (finite differences)
+      <span class="count" id="gradient-count"></span>
+    </div>
+    <div class="section-body" id="gradient-body">
+      <div class="section-empty">—</div>
+    </div>
+  </div>
+
+  <!-- Op-level Benchmarks -->
+  <div class="section" id="sec-benchmarks">
+    <div class="section-header">
+      Op-level Benchmarks
+      <span class="count" id="bench-count"></span>
+    </div>
+    <div class="section-body" id="bench-body">
+      <div class="section-empty">Click "Run All" or "Benchmarks Only" to start</div>
+    </div>
+  </div>
+
+  <!-- Training Benchmark -->
+  <div class="section" id="sec-training">
+    <div class="section-header">
+      Training Benchmark (10 steps)
+      <span class="count" id="train-count"></span>
+    </div>
+    <div class="section-body" id="train-body">
+      <div class="section-empty">—</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="importmap">
+{ "imports": {
+    "@jax-js/jax":   "./node_modules/@jax-js/jax/dist/index.js",
+    "@jax-js/optax": "./node_modules/@jax-js/optax/dist/index.js"
+}}
+</script>
+<script type="module">
+import { init, defaultDevice, numpy as np, nn, grad, random, tree } from '@jax-js/jax';
+
+// --- State ---
+let running = false;
+let selectedBackend = 'cpu';
+let hasWebGPU = false;
+let passCount = 0, failCount = 0;
+let jaxDevices = [];
+
+const $ = id => document.getElementById(id);
+
+// --- jax-js init + WebGPU detection ---
+(async () => {
+  try {
+    jaxDevices = await init();
+    if (jaxDevices.includes('webgpu')) {
+      hasWebGPU = true;
+      $('tog-gpu').disabled = false;
+      $('badge-gpu-status').innerHTML = '<span class="dot"></span>WebGPU available';
+      $('badge-gpu-status').classList.add('active');
+    }
+  } catch (e) {
+    console.warn('jax-js init:', e);
+  }
+  if (!hasWebGPU) {
+    $('badge-gpu-status').innerHTML = '<span class="dot"></span>WebGPU unavailable';
+  }
+})();
+
+// --- Backend toggle ---
+$('tog-cpu').onclick = () => {
+  if (running) return;
+  selectedBackend = 'cpu';
+  $('tog-cpu').classList.add('selected');
+  $('tog-gpu').classList.remove('selected');
+};
+$('tog-gpu').onclick = () => {
+  if (running || !hasWebGPU) return;
+  selectedBackend = 'gpu';
+  $('tog-gpu').classList.add('selected');
+  $('tog-cpu').classList.remove('selected');
+};
+
+// --- Utilities ---
+function maxAbsError(a, b) {
+  let maxErr = 0;
+  for (let i = 0; i < a.length; i++) maxErr = Math.max(maxErr, Math.abs(a[i] - b[i]));
+  return maxErr;
+}
+
+function relError(a, b) {
+  let maxRel = 0;
+  for (let i = 0; i < a.length; i++) {
+    const denom = Math.max(Math.abs(a[i]), Math.abs(b[i]), 1e-8);
+    maxRel = Math.max(maxRel, Math.abs(a[i] - b[i]) / denom);
+  }
+  return maxRel;
+}
+
+async function timeIt(fn, warmup = 5, runs = 100) {
+  for (let i = 0; i < warmup; i++) await fn();
+  const times = [];
+  for (let i = 0; i < runs; i++) {
+    const t0 = performance.now();
+    await fn();
+    times.push(performance.now() - t0);
+  }
+  return times.reduce((a, b) => a + b) / times.length;
+}
+
+function addTestRow(containerId, name, status, detail) {
+  const container = $(containerId);
+  // Clear empty placeholder
+  const empty = container.querySelector('.section-empty');
+  if (empty) empty.remove();
+
+  const row = document.createElement('div');
+  row.className = 'test-row';
+
+  let icon, iconClass, detailClass;
+  if (status === 'pass') {
+    icon = '\u2713'; iconClass = 'pass'; detailClass = 'pass';
+    passCount++;
+  } else if (status === 'fail') {
+    icon = '\u2717'; iconClass = 'fail'; detailClass = 'fail';
+    failCount++;
+  } else {
+    icon = '\u25E6'; iconClass = 'running'; detailClass = '';
+  }
+
+  row.innerHTML = `
+    <span class="test-icon ${iconClass}">${icon}</span>
+    <span class="test-name">${escHtml(name)}</span>
+    <span class="test-detail ${detailClass}">${escHtml(detail || '')}</span>
+  `;
+  container.appendChild(row);
+  updateSummary();
+  return row;
+}
+
+function updateSummary() {
+  $('summary').style.display = 'flex';
+  $('sum-pass').textContent = passCount;
+  $('sum-fail').textContent = failCount;
+  $('sum-total').textContent = passCount + failCount;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setButtons(disabled) {
+  running = disabled;
+  $('btn-run').disabled = disabled;
+  $('btn-correctness').disabled = disabled;
+  $('btn-benchmarks').disabled = disabled;
+  $('tog-cpu').disabled = disabled;
+  $('tog-gpu').disabled = disabled || !hasWebGPU;
+}
+
+function resetState() {
+  passCount = 0;
+  failCount = 0;
+  $('progress').style.width = '0%';
+  $('summary').style.display = 'none';
+}
+
+function initBackend() {
+  const device = selectedBackend === 'gpu' ? 'webgpu' : 'wasm';
+  defaultDevice(device);
+  const label = device === 'wasm' ? 'CPU (Wasm)' : 'WebGPU';
+  $('badge-backend').innerHTML = `<span class="dot"></span>${label}`;
+  $('badge-backend').classList.add('active');
+  return device;
+}
+
+async function yield_() {
+  await new Promise(r => requestAnimationFrame(r));
+}
+
+// --- Finite diff check ---
+async function finiteDiffCheck(opFn, inputShapes, eps = 1e-4) {
+  const rngKey = random.key(123);
+  const keys = random.split(rngKey, inputShapes.length);
+
+  const inputs = inputShapes.map((shape, idx) => {
+    const k = keys.ref.slice(idx);
+    return random.uniform(k, shape, { minval: -1, maxval: 1 });
+  });
+
+  const inputDatas = inputs.map(inp => inp.ref.dataSync());
+  const inputShapesActual = inputs.map(inp => inp.ref.shape);
+
+  const results = [];
+  for (let inputIdx = 0; inputIdx < inputs.length; inputIdx++) {
+    const gradFn = grad((...args) => np.sum(opFn(...args)), { argnums: inputIdx });
+    const analyticGrad = gradFn(...inputs.map(x => x.ref));
+    const analyticArr = analyticGrad.dataSync();
+
+    const inputData = inputDatas[inputIdx];
+    const shape = inputShapesActual[inputIdx];
+    const numericGrad = new Float32Array(inputData.length);
+
+    for (let i = 0; i < inputData.length; i++) {
+      const plusData = new Float32Array(inputData);
+      plusData[i] += eps;
+      const plusInputs = inputs.map((inp, idx) =>
+        idx === inputIdx ? np.array(plusData).reshape(shape) : inp.ref
+      );
+      const plusVal = np.sum(opFn(...plusInputs)).item();
+
+      const minusData = new Float32Array(inputData);
+      minusData[i] -= eps;
+      const minusInputs = inputs.map((inp, idx) =>
+        idx === inputIdx ? np.array(minusData).reshape(shape) : inp.ref
+      );
+      const minusVal = np.sum(opFn(...minusInputs)).item();
+
+      numericGrad[i] = (plusVal - minusVal) / (2 * eps);
+    }
+
+    results.push({ inputIdx, err: relError(analyticArr, numericGrad) });
+  }
+
+  tree.dispose(inputs);
+  return results;
+}
+
+// --- Correctness Tests ---
+async function runCorrectnessTests() {
+  $('correctness-body').innerHTML = '';
+  $('gradient-body').innerHTML = '';
+  $('correctness-count').textContent = '';
+  $('gradient-count').textContent = '';
+
+  const tests = [
+    {
+      name: 'matmul forward',
+      fn: async () => {
+        const a = np.array([[1,2,3],[4,5,6]]);
+        const b = np.array([[7,8],[9,10],[11,12]]);
+        const c = np.matmul(a, b);
+        const result = c.dataSync();
+        const expected = new Float32Array([58, 64, 139, 154]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'dot (linear) forward',
+      fn: async () => {
+        const x = np.array([[1, 2]]);
+        const w = np.array([[3, 5, 7], [4, 6, 8]]);  // [inDim=2, outDim=3]
+        const out = np.dot(x, w);
+        const result = out.dataSync();
+        const expected = new Float32Array([11, 17, 23]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'add forward',
+      fn: async () => {
+        const a = np.array([[1, 2, 3]]);
+        const b = np.array([[4, 5, 6]]);
+        const c = a.add(b);
+        const result = c.dataSync();
+        const expected = new Float32Array([5, 7, 9]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'relu forward',
+      fn: async () => {
+        const x = np.array([[-2, -1, 0, 1, 2]]);
+        const y = nn.relu(x);
+        const result = y.dataSync();
+        const expected = new Float32Array([0, 0, 0, 1, 2]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'softmax forward (rows sum to 1)',
+      fn: async () => {
+        const x = np.array([[1, 2, 3], [1, 2, 3]]);
+        const y = nn.softmax(x, -1);
+        const result = y.dataSync();
+        const sum0 = result[0] + result[1] + result[2];
+        const sum1 = result[3] + result[4] + result[5];
+        const ok = Math.abs(sum0 - 1) < 1e-5 && Math.abs(sum1 - 1) < 1e-5;
+        return { pass: ok, detail: ok ? `sums=[${sum0.toFixed(5)}, ${sum1.toFixed(5)}]` : `sums=${sum0}, ${sum1}` };
+      }
+    },
+    {
+      name: 'rmsnorm forward',
+      fn: async () => {
+        const x = np.array([[3, 4]]);
+        const ms = (9 + 16) / 2;
+        const sc = 1.0 / Math.sqrt(ms + 1e-5);
+        const xRef = x.ref;
+        const msArr = np.mean(np.square(xRef), -1, { keepdims: true });
+        const y = x.div(np.sqrt(msArr.add(1e-5)));
+        const result = y.dataSync();
+        const expected = new Float32Array([3 * sc, 4 * sc]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'embedding (take) forward',
+      fn: async () => {
+        const table = np.array([[10, 20], [30, 40], [50, 60]]);
+        const ids = np.array(new Int32Array([2, 0, 1]), { dtype: np.int32 });
+        const y = np.take(table, ids, 0);
+        const result = y.dataSync();
+        const expected = new Float32Array([50, 60, 10, 20, 30, 40]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'crossEntropyLoss forward',
+      fn: async () => {
+        const logits = np.array([[2.0, 1.0, 0.1]]);
+        const targets = np.array(new Int32Array([0]), { dtype: np.int32 });
+        const logprobs = nn.logSoftmax(logits, -1);
+        const oneHot = nn.oneHot(targets, 3);
+        const lossVal = np.mean(np.sum(logprobs.mul(oneHot), -1)).neg();
+        const lossScalar = lossVal.item();
+        const exps = [Math.exp(2), Math.exp(1), Math.exp(0.1)];
+        const total = exps[0] + exps[1] + exps[2];
+        const expected = -Math.log(exps[0] / total);
+        const err = Math.abs(lossScalar - expected);
+        return { pass: err < 1e-4, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'slice forward',
+      fn: async () => {
+        const a = np.array([[1, 2, 3, 4], [5, 6, 7, 8]]);
+        const s = a.slice([], [1, 3]);
+        const result = s.dataSync();
+        const expected = new Float32Array([2, 3, 6, 7]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+    {
+      name: 'transpose forward',
+      fn: async () => {
+        const a = np.array([[1, 2], [3, 4]]);
+        const t = np.transpose(a);
+        const result = t.dataSync();
+        const expected = new Float32Array([1, 3, 2, 4]);
+        const err = maxAbsError(result, expected);
+        return { pass: err < 1e-5, detail: `err=${err.toExponential(2)}` };
+      }
+    },
+  ];
+
+  let ct = 0;
+  for (const test of tests) {
+    try {
+      const { pass, detail } = await test.fn();
+      addTestRow('correctness-body', test.name, pass ? 'pass' : 'fail', detail);
+    } catch (e) {
+      addTestRow('correctness-body', test.name, 'fail', e.message);
+    }
+    ct++;
+    $('correctness-count').textContent = `${ct}/${tests.length}`;
+    await yield_();
+  }
+
+  // --- Gradient checks ---
+  const gradChecks = [
+    { name: 'matmul', fn: (a, b) => np.matmul(a, b), shapes: [[2, 3], [3, 2]] },
+    { name: 'dot (linear)', fn: (x, w) => np.dot(x, w), shapes: [[2, 3], [3, 4]] },
+    { name: 'add', fn: (a, b) => a.add(b), shapes: [[2, 3], [2, 3]] },
+    { name: 'relu', fn: (a) => nn.relu(a), shapes: [[2, 3]] },
+    { name: 'scale', fn: (a) => a.mul(0.5), shapes: [[2, 3]] },
+    { name: 'negate', fn: (a) => a.neg(), shapes: [[2, 3]] },
+    { name: 'rmsnorm', fn: (a) => {
+      const ms = np.mean(np.square(a.ref), -1, { keepdims: true });
+      return a.div(np.sqrt(ms.add(1e-5)));
+    }, shapes: [[2, 4]] },
+    { name: 'softmax', fn: (a) => nn.softmax(a, -1), shapes: [[2, 4]] },
+  ];
+
+  let gc = 0;
+  for (const { name, fn, shapes } of gradChecks) {
+    try {
+      const results = await finiteDiffCheck(fn, shapes);
+      const maxErr = Math.max(...results.map(r => r.err));
+      const ok = maxErr < 0.05;
+      addTestRow('gradient-body', `${name} gradient`, ok ? 'pass' : 'fail', `max rel err=${maxErr.toExponential(2)}`);
+    } catch (e) {
+      addTestRow('gradient-body', `${name} gradient`, 'fail', e.message);
+    }
+    gc++;
+    $('gradient-count').textContent = `${gc}/${gradChecks.length}`;
+    await yield_();
+  }
+}
+
+// --- Op-level Benchmarks ---
+async function runBenchmarks() {
+  $('bench-body').innerHTML = `
+    <table class="bench-table">
+      <thead><tr><th>Op</th><th>Size</th><th style="text-align:right">ms</th></tr></thead>
+      <tbody id="bench-tbody"></tbody>
+    </table>
+  `;
+
+  const tbody = $('bench-tbody');
+  let count = 0;
+
+  function addRow(opName, size, ms) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="op-name">${opName}</td>
+      <td class="size-val">${size}</td>
+      <td class="ms-val">${ms.toFixed(3)}</td>
+    `;
+    tbody.appendChild(tr);
+    count++;
+    $('bench-count').textContent = `${count} ops`;
+  }
+
+  for (const n of [16, 64, 256]) {
+    const a = np.ones([n, n]);
+    const b = np.ones([n, n]);
+    const ms = await timeIt(() => { const c = np.dot(a.ref, b.ref); c.dataSync(); });
+    addRow('matmul', `${n}\u00D7${n}`, ms);
+    a.dispose(); b.dispose();
+  }
+
+  for (const n of [1000, 10000, 100000]) {
+    const a = np.ones([1, n]);
+    const b = np.ones([1, n]);
+    const ms = await timeIt(() => { const c = a.ref.add(b.ref); c.dataSync(); });
+    addRow('add', n.toLocaleString(), ms);
+    a.dispose(); b.dispose();
+  }
+
+  for (const n of [1000, 10000, 100000]) {
+    const a = np.ones([1, n]);
+    const ms = await timeIt(() => { const c = nn.relu(a.ref); c.dataSync(); });
+    addRow('relu', n.toLocaleString(), ms);
+    a.dispose();
+  }
+
+  for (const n of [16, 64, 256]) {
+    const a = np.ones([1, n]);
+    const ms = await timeIt(() => { const c = nn.softmax(a.ref, -1); c.dataSync(); });
+    addRow('softmax', String(n), ms);
+    a.dispose();
+  }
+}
+
+// --- Training Benchmark ---
+async function runTrainingBench(backendName) {
+  $('train-body').innerHTML = '<div class="section-empty">Running 10 training steps\u2026</div>';
+  $('train-count').textContent = '';
+
+  try {
+    const { buildBPETokenizer } = await import('./bpe.js');
+    const tokResp = await fetch('data/names.tok.json');
+    const tokJson = await tokResp.json();
+    const tokenizer = buildBPETokenizer(tokJson.merges);
+    const trainResp = await fetch('data/names.train.bin');
+    const trainData = new Uint16Array(await trainResp.arrayBuffer());
+    const valResp = await fetch('data/names.val.bin');
+    const valData = new Uint16Array(await valResp.arrayBuffer());
+
+    const { train } = await import('./train.js');
+    const steps = 10;
+
+    const t0 = performance.now();
+    const losses = [];
+    const gen = train(backendName, trainData, valData, tokenizer, { steps, model: 'nano' });
+
+    for await (const event of gen) {
+      if (event.type === 'step') {
+        losses.push(event.loss);
+        $('train-count').textContent = `${event.step}/${steps}`;
+      }
+    }
+    const elapsed = performance.now() - t0;
+
+    const decreased = losses[losses.length - 1] < losses[0];
+
+    $('train-body').innerHTML = `<div class="train-results">
+      <div class="train-stat">
+        <div class="train-stat-label">Elapsed</div>
+        <div class="train-stat-value">${(elapsed / 1000).toFixed(2)}s</div>
+      </div>
+      <div class="train-stat">
+        <div class="train-stat-label">Steps/sec</div>
+        <div class="train-stat-value">${(steps / (elapsed / 1000)).toFixed(2)}</div>
+      </div>
+      <div class="train-stat">
+        <div class="train-stat-label">First Loss</div>
+        <div class="train-stat-value">${losses[0]?.toFixed(4) ?? '—'}</div>
+      </div>
+      <div class="train-stat">
+        <div class="train-stat-label">Last Loss</div>
+        <div class="train-stat-value">${losses[losses.length - 1]?.toFixed(4) ?? '—'}</div>
+      </div>
+      <div class="train-stat">
+        <div class="train-stat-label">Loss Decreased</div>
+        <div class="train-stat-value ${decreased ? 'good' : 'bad'}">${decreased ? 'yes' : 'NO'}</div>
+      </div>
+    </div>`;
+
+    if (decreased) passCount++; else failCount++;
+    updateSummary();
+  } catch (e) {
+    $('train-body').innerHTML = `<div class="section-empty" style="color:var(--red)">${escHtml(e.message)}</div>`;
+    failCount++;
+    updateSummary();
+  }
+}
+
+// --- Runners ---
+async function runAll() {
+  resetState();
+  setButtons(true);
+  const t0 = performance.now();
+
+  const backendName = initBackend();
+  $('progress').style.width = '10%';
+  await yield_();
+
+  await runCorrectnessTests();
+  $('progress').style.width = '50%';
+  await yield_();
+
+  await runBenchmarks();
+  $('progress').style.width = '75%';
+  await yield_();
+
+  await runTrainingBench(backendName);
+  $('progress').style.width = '100%';
+
+  $('sum-time').textContent = ((performance.now() - t0) / 1000).toFixed(1) + 's';
+  setButtons(false);
+}
+
+async function runCorrectnessOnly() {
+  resetState();
+  setButtons(true);
+  $('bench-body').innerHTML = '<div class="section-empty">—</div>';
+  $('train-body').innerHTML = '<div class="section-empty">—</div>';
+  const t0 = performance.now();
+
+  initBackend();
+  await runCorrectnessTests();
+  $('progress').style.width = '100%';
+
+  $('sum-time').textContent = ((performance.now() - t0) / 1000).toFixed(1) + 's';
+  setButtons(false);
+}
+
+async function runBenchmarksOnly() {
+  resetState();
+  setButtons(true);
+  $('correctness-body').innerHTML = '<div class="section-empty">—</div>';
+  $('gradient-body').innerHTML = '<div class="section-empty">—</div>';
+  const t0 = performance.now();
+
+  const backendName = initBackend();
+  $('progress').style.width = '25%';
+  await yield_();
+
+  await runBenchmarks();
+  $('progress').style.width = '60%';
+  await yield_();
+
+  await runTrainingBench(backendName);
+  $('progress').style.width = '100%';
+
+  $('sum-time').textContent = ((performance.now() - t0) / 1000).toFixed(1) + 's';
+  setButtons(false);
+}
+
+$('btn-run').onclick = runAll;
+$('btn-correctness').onclick = runCorrectnessOnly;
+$('btn-benchmarks').onclick = runBenchmarksOnly;
+</script>
+</body>
+</html>
