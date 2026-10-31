@@ -71,6 +71,19 @@
   th { color: var(--faint); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
   .save { color: var(--dim); line-height: 1.45; margin-top: 0.35rem; }
   .save.fresh { color: var(--ember-2); }
+  .caret::after {
+    content: "";
+    display: inline-block;
+    width: 0.55ch;
+    height: 0.9em;
+    margin-left: 0.12em;
+    background: var(--ember-2);
+    vertical-align: text-bottom;
+    animation: blink 1s steps(1) infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
   .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; margin: 0.7rem 0; }
   .step { border-top: 2px solid var(--ember); padding-top: 0.4rem; color: var(--dim); font-size: 0.92rem; }
   .step strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 0.15rem; }
@@ -129,9 +142,9 @@
 
   <section style="margin:0 0 0.7rem">
     <h2 id="relay-title">Watcher to Voice</h2>
-    <p class="save" id="relay-ask">The Watcher speaks after the next saved version.</p>
-    <p class="save" id="relay-reply">The Voice answers in that same thread.</p>
-    <p class="save" id="save-line">When a phone sends, its name lands on the ring and the curve steps down.</p>
+    <p class="save caret" id="relay-ask">The Watcher speaks after the next saved version.</p>
+    <p class="save caret" id="relay-reply">The Voice answers in that same thread.</p>
+    <p class="save caret" id="save-line">When a phone sends, its name lands on the ring and the curve steps down.</p>
   </section>
   <p id="status">Connecting to Orca.</p>
   <p id="error"></p>
