@@ -391,7 +391,10 @@ function renderPhones(list) {
   $('phones').textContent = String(phones.length);
   $('presence').textContent = phones.length === 0 ? 'waiting for a phone' : (phones.length === 1 ? '1 phone training' : `${phones.length} phones training`);
   $('roster').innerHTML = phones.length
-    ? phones.map((phone) => `<tr><td>${phone.name}</td><td>${phone.loss == null ? '—' : Number(phone.loss).toFixed(2)}</td><td>${phone.tokens || 0}</td><td>${phone.offered ? 'sending' : 'training'}</td></tr>`).join('')
+    ? phones.map((phone) => {
+        const state = phone.offered ? 'sending' : (phone.tokens > 0 ? 'training' : 'connected');
+        return `<tr><td>${phone.name}</td><td>${phone.loss == null ? '—' : Number(phone.loss).toFixed(2)}</td><td>${phone.tokens || 0}</td><td>${state}</td></tr>`;
+      }).join('')
     : '<tr><td colspan="4">No phone is connected.</td></tr>';
 }
 
