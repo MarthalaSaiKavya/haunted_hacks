@@ -6,96 +6,142 @@
 <title>Séance</title>
 <style>
   :root {
-    --bg: #110e0c;
-    --panel: #1a1512;
-    --ink: #f4eadc;
-    --dim: #b3a394;
-    --line: #3a312b;
-    --ember: #e08a45;
-    --moss: #d7c07a;
+    --bg: #0e0c0a;
+    --bg-2: #171310;
+    --ink: #f6efe4;
+    --dim: #b7a898;
+    --faint: #7d7268;
+    --line: #3c332c;
+    --ember: #e39a56;
+    --ember-2: #f1d3a8;
+    --moss: #d9c48a;
+    --good: #c6d3a1;
   }
   * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
     font-family: Georgia, "Iowan Old Style", Palatino, serif;
+    min-height: 100vh;
   }
-  main { max-width: 880px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
-  header { border-bottom: 1px solid var(--line); padding-bottom: 0.8rem; margin-bottom: 1rem; }
-  h1 { font-weight: 500; font-size: 2.4rem; letter-spacing: 0.04em; margin: 0; }
-  h1 span { color: var(--ember); }
-  .lede { color: var(--dim); margin: 0.4rem 0 0; line-height: 1.45; }
-  .facts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.8rem; }
-  .fact {
-    border: 1px solid var(--line);
-    padding: 0.35rem 0.55rem;
-    font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 0.75rem;
-    color: var(--moss);
+  button, .num, .meta, .kicker, .seat, .fact {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   }
-  .grid { display: grid; gap: 0.8rem; }
-  @media (min-width: 800px) {
-    .grid { grid-template-columns: 1.4fr 0.8fr; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 1.1rem 1rem 2.5rem; }
+  header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1rem;
+    align-items: end;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.9rem;
   }
-  section {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    padding: 0.8rem;
+  .kicker { color: var(--ember); letter-spacing: 0.22em; font-size: 0.68rem; text-transform: uppercase; }
+  h1 { font-weight: 500; font-size: clamp(3rem, 8vw, 5.2rem); line-height: 0.85; margin: 0.25rem 0; letter-spacing: -0.03em; }
+  .lede { color: var(--dim); max-width: 38rem; margin: 0; line-height: 1.45; font-size: 1.02rem; }
+  .seal {
+    width: 92px; height: 92px; border: 1px solid var(--ember); border-radius: 50%;
+    display: grid; place-items: center; text-align: center; color: var(--ember-2);
   }
-  h2 {
-    margin: 0 0 0.6rem;
-    font-size: 0.78rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--ember);
-    font-weight: 500;
+  .seal b { display: block; font-size: 0.72rem; letter-spacing: 0.16em; }
+  .seal span { font-family: Georgia, serif; font-size: 1.35rem; }
+  .beats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin: 0.9rem 0; }
+  .beat { border-top: 1px solid var(--line); padding-top: 0.45rem; color: var(--dim); font-size: 0.92rem; }
+  .beat strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 0.15rem; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; margin-bottom: 0.8rem; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); padding: 0.7rem 0.75rem 0.6rem; }
+  .stat .label { color: var(--faint); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; }
+  .stat .num { font-size: 1.55rem; margin-top: 0.2rem; color: var(--ember-2); font-variant-numeric: tabular-nums; }
+  .stat .sub { color: var(--dim); font-size: 0.75rem; margin-top: 0.15rem; }
+  .stage { display: grid; grid-template-columns: 1.45fr 0.8fr; gap: 0.7rem; }
+  section { background: var(--bg-2); border: 1px solid var(--line); padding: 0.85rem; }
+  h2 { margin: 0 0 0.55rem; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); font-weight: 500; }
+  .quote {
+    min-height: 7.5rem;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    background:
+      radial-gradient(circle at 50% 0%, rgba(227,154,86,0.08), transparent 55%),
+      var(--bg-2);
   }
-  canvas { width: 100%; height: 180px; display: block; background: #0c0a09; }
-  #status { font-variant-numeric: tabular-nums; }
-  #error { color: #e7b2a8; white-space: pre-wrap; }
-  .spirit, .line { padding: 0.35rem 0; border-top: 1px solid var(--line); font-size: 0.95rem; }
-  .who { color: var(--ember); }
-  .meta { color: var(--dim); font-family: ui-monospace, monospace; font-size: 0.75rem; }
-  button {
-    margin-top: 0.6rem;
-    background: transparent;
-    color: var(--ink);
-    border: 1px solid var(--ember);
-    padding: 0.55rem 0.8rem;
-    font: inherit;
+  .quote .utterance { font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.25; margin: 0.55rem 0 0.8rem; }
+  .quote .waiting { color: var(--faint); font-size: 1.2rem; }
+  #status { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--good); margin: 0; letter-spacing: 0.01em; }
+  canvas { width: 100%; height: 220px; display: block; background: #0c0a09; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin-top: 0.7rem; }
+  .seat { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0; border-top: 1px solid var(--line); color: var(--ink); }
+  .seat.you { color: var(--good); }
+  .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--ember); display: inline-block; margin-right: 0.4rem; }
+  .line { padding: 0.55rem 0; border-top: 1px solid var(--line); }
+  .line .who { color: var(--ember-2); }
+  .line .when { color: var(--faint); float: right; font-size: 0.72rem; }
+  #talk { max-height: 280px; overflow: auto; }
+  #error { color: #e7b2a8; min-height: 1.2em; }
+  .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 0.8rem; }
+  button { background: transparent; color: var(--dim); border: 1px solid var(--line); padding: 0.45rem 0.7rem; }
+  .live { color: var(--good); }
+  @media (max-width: 860px) {
+    header, .beats, .stats, .stage, .split { grid-template-columns: 1fr; }
+    .seal { display: none; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    canvas { height: 160px; }
+    #talk { max-height: 220px; }
   }
 </style>
 </head>
 <body>
-<main>
+<div class="wrap">
   <header>
-    <h1>Sé<span>a</span>nce</h1>
-    <p class="lede">One circle. Every phone trains the same small Shakespeare model. The room keeps the weights. The Watcher reports the loss. The Voice answers with a line the model actually wrote.</p>
-    <div class="facts">
-      <div class="fact" id="version">version —</div>
-      <div class="fact" id="loss">loss —</div>
-      <div class="fact" id="spirits">spirits 0</div>
-      <div class="fact" id="presence">awake</div>
-      <div class="fact" id="status">joining</div>
+    <div>
+      <div class="kicker">One room · many phones · one model</div>
+      <h1>Séance</h1>
+      <p class="lede">Every phone trains the same small Shakespeare model. The room keeps a single copy of the weights and averages each change. The Watcher reports the loss. The Voice reads what those weights now write.</p>
     </div>
+    <div class="seal"><b>ROOM</b><span>Hall</span></div>
   </header>
-  <div class="grid">
-    <section>
-      <h2>Loss in this circle</h2>
-      <canvas id="chart" width="640" height="180"></canvas>
-      <p class="meta" id="step">waiting for the first step</p>
+
+  <div class="beats">
+    <div class="beat"><strong>1 · This phone trains</strong>Forward and backward stay on the device. Only the change in the weights leaves.</div>
+    <div class="beat"><strong>2 · The room averages</strong>One actor applies every offering, in order, and saves the result before it answers.</div>
+    <div class="beat"><strong>3 · The Voice speaks</strong>After each round it runs the saved weights and posts the line they produce.</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Spirits here</div><div class="num" id="spirits">0</div><div class="sub" id="presence">waking</div></div>
+    <div class="stat"><div class="label">Room version</div><div class="num" id="version">—</div><div class="sub" id="weights">weights not saved yet</div></div>
+    <div class="stat"><div class="label">Shared loss</div><div class="num" id="room-loss">—</div><div class="sub" id="loss-delta">mean of the last round</div></div>
+    <div class="stat"><div class="label">This phone</div><div class="num" id="loss">—</div><div class="sub" id="step">waiting for the first step</div></div>
+    <div class="stat"><div class="label">Round closes</div><div class="num" id="countdown">—</div><div class="sub" id="offer">no offering yet</div></div>
+  </div>
+
+  <div class="stage">
+    <section class="quote">
+      <h2>The model just wrote</h2>
+      <p class="utterance waiting" id="quote">The Voice speaks after the first shared round.</p>
+      <p id="status">joining the circle</p>
       <p id="error"></p>
-      <button id="leave" type="button">Leave the circle</button>
     </section>
     <section>
-      <h2>Who is here</h2>
+      <h2>Seats</h2>
       <div id="roster"></div>
-      <h2 style="margin-top:1rem">What they say</h2>
+    </section>
+  </div>
+
+  <div class="split">
+    <section>
+      <h2>Shared loss after each round</h2>
+      <canvas id="chart" width="720" height="220"></canvas>
+    </section>
+    <section>
+      <h2>The circle</h2>
       <div id="talk"></div>
     </section>
   </div>
-</main>
+
+  <div class="actions">
+    <div class="meta" id="model-note">nano · Shakespeare · 1,024 tokens · CPU</div>
+    <button id="leave" type="button">Leave the circle</button>
+  </div>
+</div>
+
 <script type="importmap">
 {
   "imports": {
@@ -112,7 +158,6 @@ import { train, buildBPETokenizer } from '/engine/train.js';
 import { encodeF32, decodeF32 } from '/codec.js';
 
 const $ = (id) => document.getElementById(id);
-const losses = [];
 let ws = null;
 let clientId = null;
 let version = 0;
@@ -127,6 +172,9 @@ let roundLossSum = 0;
 let roundTokens = 0;
 let seenTalk = 0;
 let turn = 0;
+let roomHistory = [];
+let submissions = 0;
+let quorum = 1;
 
 function spiritName() {
   const a = ['pale', 'ash', 'quiet', 'late', 'dim', 'old', 'soft', 'thin'];
@@ -135,61 +183,163 @@ function spiritName() {
 }
 const myName = spiritName();
 
+function weightCount(encoded) {
+  if (!encoded) return 0;
+  const pad = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
+  return (encoded.length * 3 / 4 - pad) / 4;
+}
+
+function clock(ms) {
+  return new Date(ms).toLocaleTimeString('en-US', {
+    timeZone: 'America/Los_Angeles',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function draw() {
   const canvas = $('chart');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(320, rect.width) * dpr;
+  canvas.height = 220 * dpr;
   const ctx = canvas.getContext('2d');
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = canvas.width / dpr;
+  const h = 220;
+  ctx.fillStyle = '#0c0a09';
+  ctx.fillRect(0, 0, w, h);
+  const pad = { l: 46, r: 12, t: 16, b: 28 };
   ctx.strokeStyle = '#2a2420';
-  for (let i = 1; i < 4; i++) {
-    ctx.beginPath();
-    ctx.moveTo(0, (h / 4) * i);
-    ctx.lineTo(w, (h / 4) * i);
-    ctx.stroke();
+  ctx.fillStyle = '#7d7268';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  if (roomHistory.length === 0) {
+    ctx.textAlign = 'left';
+    ctx.fillText('The shared curve appears after the first round.', pad.l, h / 2);
+    return;
   }
-  if (losses.length < 2) return;
-  let min = Math.min(...losses);
-  let max = Math.max(...losses);
-  if (max === min) { min -= 1; max += 1; }
+  const values = roomHistory.map((row) => row.avgLoss);
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (max === min) { min -= 0.5; max += 0.5; }
+  const span = max - min;
+  min -= span * 0.12;
+  max += span * 0.12;
+  for (let i = 0; i <= 3; i++) {
+    const y = pad.t + ((h - pad.t - pad.b) * i) / 3;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(w - pad.r, y);
+    ctx.stroke();
+    const label = max - ((max - min) * i) / 3;
+    ctx.fillText(label.toFixed(2), pad.l - 8, y);
+  }
+  const xAt = (i) => {
+    if (roomHistory.length === 1) return (pad.l + w - pad.r) / 2;
+    return pad.l + (i / (roomHistory.length - 1)) * (w - pad.l - pad.r);
+  };
+  const yAt = (value) => pad.t + (1 - (value - min) / (max - min)) * (h - pad.t - pad.b);
   ctx.beginPath();
-  ctx.strokeStyle = '#e08a45';
+  ctx.strokeStyle = '#e39a56';
   ctx.lineWidth = 2;
-  losses.forEach((value, i) => {
-    const x = (i / (losses.length - 1)) * (w - 8) + 4;
-    const y = h - 8 - ((value - min) / (max - min)) * (h - 16);
+  values.forEach((value, i) => {
+    const x = xAt(i);
+    const y = yAt(value);
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });
   ctx.stroke();
+  ctx.fillStyle = '#f1d3a8';
+  values.forEach((value, i) => {
+    ctx.beginPath();
+    ctx.arc(xAt(i), yAt(value), 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#7d7268';
+  const last = roomHistory.length - 1;
+  ctx.fillText('v' + roomHistory[0].version, xAt(0), h - 20);
+  if (last > 0) ctx.fillText('v' + roomHistory[last].version, xAt(last), h - 20);
 }
 
 function renderPeople(clients) {
-  const mine = clientId;
-  $('spirits').textContent = `spirits ${clients.length}`;
-  $('roster').innerHTML = clients.map((client) =>
-    `<div class="spirit">${client.name}${client.id === mine ? ' · you' : ''}</div>`
-  ).join('') || '<div class="spirit">The chairs are empty.</div>';
+  $('spirits').textContent = String(clients.length);
+  $('roster').innerHTML = clients.map((client) => {
+    const mine = client.id === clientId;
+    return `<div class="seat${mine ? ' you' : ''}"><span><span class="dot"></span>${client.name}</span><span>${mine ? 'this phone' : 'training'}</span></div>`;
+  }).join('') || '<div class="seat">The chairs are empty.</div>';
 }
 
 function renderTalk(messages) {
   if (messages.length === seenTalk && $('talk').childElementCount) return;
+  const box = $('talk');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   seenTalk = messages.length;
-  $('talk').innerHTML = messages.map((message) =>
-    `<div class="line"><span class="who">${message.from}.</span> ${message.text}</div>`
+  box.innerHTML = messages.map((message) =>
+    `<div class="line"><span class="when">${clock(message.at)} PT</span><span class="who">${message.from}.</span> ${message.text}</div>`
   ).join('') || '<div class="line">No one has spoken.</div>';
-  $('talk').scrollTop = $('talk').scrollHeight;
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+  let quote = '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const text = messages[i].text;
+    if (messages[i].from === 'The Voice' && text.startsWith('It continues:')) {
+      quote = text.slice('It continues:'.length).trim();
+      break;
+    }
+  }
+  const el = $('quote');
+  if (quote) {
+    el.className = 'utterance';
+    el.textContent = quote;
+  }
+}
+
+function renderHistory(history) {
+  roomHistory = history || [];
+  if (!roomHistory.length) {
+    $('room-loss').textContent = '—';
+    $('loss-delta').textContent = 'mean of the last round';
+  } else {
+    const last = roomHistory[roomHistory.length - 1];
+    const first = roomHistory[0];
+    $('room-loss').textContent = last.avgLoss.toFixed(2);
+    const drop = first.avgLoss - last.avgLoss;
+    $('loss-delta').textContent = roomHistory.length === 1
+      ? 'first shared round'
+      : `${first.avgLoss.toFixed(2)} → ${last.avgLoss.toFixed(2)}  (${drop >= 0 ? '−' : '+'}${Math.abs(drop).toFixed(2)})`;
+  }
+  draw();
 }
 
 function applyMeta(msg) {
-  version = msg.version;
-  deadlineMs = msg.deadlineMs;
-  $('version').textContent = `version ${msg.version}`;
-  if (msg.avgLoss != null) $('loss').textContent = `room loss ${msg.avgLoss.toFixed(3)}`;
-  $('presence').textContent = msg.dormant ? 'sleeping' : 'awake';
+  version = msg.version ?? version;
+  deadlineMs = msg.deadlineMs || deadlineMs;
+  submissions = msg.submissions || 0;
+  quorum = msg.quorum || 1;
+  $('version').textContent = String(version);
+  $('presence').textContent = msg.dormant ? 'sleeping, weights kept' : 'awake, taking offerings';
+  if (msg.weightsB64) {
+    const count = weightCount(msg.weightsB64);
+    if (count) $('weights').textContent = `${Math.round(count).toLocaleString()} weights saved`;
+  } else if (version > 0) {
+    $('weights').textContent = 'saved on disk';
+  }
+  $('offer').textContent = `${submissions} / ${quorum} offering${quorum === 1 ? '' : 's'} this round`;
   renderPeople(msg.clients || []);
   renderTalk(msg.messages || []);
+  if (msg.lossHistory) renderHistory(msg.lossHistory);
 }
+
+function tickClock() {
+  if (!deadlineMs) return;
+  const seconds = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+  $('countdown').textContent = seconds + 's';
+}
+setInterval(tickClock, 250);
+window.addEventListener('resize', draw);
 
 async function ensureBackend() {
   const devices = await init();
@@ -202,14 +352,13 @@ async function ensureBackend() {
 }
 
 async function runLoop(initialWeights, device) {
-  const dataset = 'shakespeare';
-  const tok = await fetch(`/engine/data/${dataset}.tok.json`).then((res) => {
+  const tok = await fetch('/engine/data/shakespeare.tok.json').then((res) => {
     if (!res.ok) throw new Error(`tokenizer ${res.status}`);
     return res.json();
   });
   const tokenizer = buildBPETokenizer(tok.merges);
-  const trainData = new Uint16Array(await fetch(`/engine/data/${dataset}.train.bin`).then((res) => res.arrayBuffer()));
-  const valData = new Uint16Array(await fetch(`/engine/data/${dataset}.val.bin`).then((res) => res.arrayBuffer()));
+  const trainData = new Uint16Array(await fetch('/engine/data/shakespeare.train.bin').then((res) => res.arrayBuffer()));
+  const valData = new Uint16Array(await fetch('/engine/data/shakespeare.val.bin').then((res) => res.arrayBuffer()));
   defaultDevice(device);
   trainingHandle = {};
   roundSteps = 0;
@@ -224,22 +373,24 @@ async function runLoop(initialWeights, device) {
     seed: 1,
     valEvery: 99999,
   });
-  $('status').textContent = device === 'wasm' ? 'training' : 'training slowly';
+  $('status').textContent = device === 'wasm' ? 'This phone is training.' : 'This phone is training on the slow engine.';
+  $('model-note').textContent = `nano · Shakespeare · 1,024 word-pieces · ${device === 'wasm' ? 'fast CPU' : 'slow CPU'}`;
   for await (const event of gen) {
     if (abortFlag) break;
+    if (event.type === 'init') {
+      $('weights').textContent = `${event.paramCount.toLocaleString()} weights in the room`;
+    }
     if (event.type === 'step') {
-      losses.push(event.loss);
-      if (losses.length > 80) losses.shift();
       roundSteps += 1;
       roundLossSum += event.loss;
       roundTokens += event.batchSize ?? 8;
-      $('loss').textContent = `loss ${event.loss.toFixed(3)}`;
-      $('step').textContent = `step ${event.step} · ${device}`;
-      if (event.step % 2 === 0) draw();
+      $('loss').textContent = event.loss.toFixed(2);
+      $('step').textContent = `step ${event.step} · ${device === 'wasm' ? 'fast CPU' : 'slow CPU'}`;
       if (ws && ws.readyState === WebSocket.OPEN && event.step % 4 === 0) {
         ws.send(JSON.stringify({ type: 'loss', loss: event.loss, tokens: event.batchSize ?? 8 }));
       }
       if (submitPending) {
+        $('status').textContent = 'Sending this phone’s change to the room.';
         submitPending = false;
         sendOffering();
         abortFlag = true;
@@ -286,22 +437,21 @@ async function startTraining(weightsB64) {
     } catch (error) {
       if (mine !== turn) return;
       if (device !== 'cpu') {
-        $('status').textContent = 'retrying on the slow engine';
+        $('status').textContent = 'The fast engine failed. Retrying slowly.';
         abortFlag = false;
         await runLoop(weights, 'cpu');
       } else {
         throw error;
       }
     }
-    if (!abortFlag && mine === turn) $('status').textContent = 'quiet';
+    if (!abortFlag && mine === turn) $('status').textContent = 'Waiting for the next round.';
   } catch (error) {
     if (mine !== turn) return;
-    $('status').textContent = 'error';
+    $('status').textContent = 'This phone stopped.';
     $('error').textContent = error instanceof Error ? error.message : String(error);
     console.error(error);
   } finally {
-    if (mine === turn) running = false;
-    else running = false;
+    running = false;
   }
 }
 
@@ -309,13 +459,13 @@ function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
   ws.onopen = () => {
-    $('status').textContent = 'joining';
+    $('status').textContent = 'Joining the circle.';
     ws.send(JSON.stringify({ type: 'join', name: myName }));
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'reject') {
-      $('error').textContent = msg.reason || 'rejected';
+      $('error').textContent = msg.reason || 'The room refused the offering.';
       if (msg.weightsB64) startTraining(msg.weightsB64);
       applyMeta(msg);
       return;
@@ -326,7 +476,7 @@ function connect() {
     if (msg.type === 'submit') submitPending = true;
   };
   ws.onclose = () => {
-    $('status').textContent = 'reconnecting';
+    $('status').textContent = 'The connection dropped. Rejoining.';
     abortFlag = true;
     setTimeout(connect, 1500);
   };
@@ -335,7 +485,7 @@ function connect() {
 $('leave').onclick = () => {
   abortFlag = true;
   if (ws) ws.close();
-  $('status').textContent = 'left';
+  $('status').textContent = 'You left the circle.';
 };
 
 connect();
