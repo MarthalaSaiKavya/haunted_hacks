@@ -6,7 +6,7 @@ Marthala Sai Kavya · Haunted Hacks
 
 This is the screen. Phones join with the QR. The ring is the shared loss. The chart is every version so far. Under that, the Watcher tells the Voice the loss, and the Voice answers.
 
-![Orca, the shared screen. Version 993, loss 3.99, one phone guessing. The Voice continues: to better these cannot by.](docs/orca.png)
+![Orca, the shared screen. Seven phones on the ring, version 1029, loss 4.42. The Voice continues: to betemisty.](docs/orca.png)
 
 The two-slide intro is at `/intro`.
 
@@ -121,11 +121,11 @@ The conversation is one Agent Relay flow, `seance/relay/flows/round-closed.flow.
 On the screen above, that exchange is already filled in:
 
 ```text
-Watcher    Version 992 closed. Mean loss 3.991. Continue from "to be".
-Voice      It continues: to better these cannot by.
+Watcher    Version 1028 closed. Mean loss 4.418. Continue from "to be".
+Voice      It continues: to betemisty,
 ```
 
-Version 992 was moved by the phone on the ring. Orca saved that and opened version 993. Loss started near 6.9 and is now 3.99.
+Seven phones are on the ring. Version 1028 was moved by the phone that is guessing. Orca saved that and opened version 1029. Loss started near 5.88 and is now 4.42.
 
 ## What you see
 
