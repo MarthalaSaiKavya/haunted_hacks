@@ -25,6 +25,9 @@ const TYPES = {
 
 const tickets = new Map();
 let voiceBusy = false;
+const asked = new Set();
+const relayBin = new URL('./relay/node_modules/.bin/agent-relay', import.meta.url).pathname;
+const relayCwd = new URL('./relay/', import.meta.url).pathname;
 
 function room() {
   return actors.TrainingRoom.get(ACTOR_ID);
@@ -48,18 +51,71 @@ async function seedFromDisk() {
   console.log(`actor hall is on version ${version}`);
 }
 
-async function maybeSpeak() {
+async function relay(args) {
+  const proc = new Deno.Command(relayBin, {
+    args,
+    cwd: relayCwd,
+    stdout: 'piped',
+    stderr: 'piped',
+  });
+  const out = await proc.output();
+  const text = new TextDecoder().decode(out.stdout).trim();
+  const err = new TextDecoder().decode(out.stderr).trim();
+  if (out.code !== 0) throw new Error(err || text || `agent-relay exited ${out.code}`);
+  const start = text.search(/[{[]/);
+  return start === -1 ? text : JSON.parse(text.slice(start));
+}
+
+async function watcherStep(snap) {
+  const last = snap.lossHistory.at(-1);
+  if (!last || !snap.weightsB64) return;
+  if (last.version <= snap.spokenVersion || asked.has(last.version)) return;
+  const text = `Version ${last.version} closed. Mean loss ${last.avgLoss.toFixed(3)}. Continue from "to be".`;
+  await relay(['message', 'dm', 'send', 'voice', text, '--as', 'watcher']);
+  await room().recordLine('The Watcher', `To the Voice: ${text}`, snap.spokenVersion);
+  asked.add(last.version);
+}
+
+async function voiceStep() {
+  const inbox = await relay(['message', 'inbox', 'check', '--as', 'voice']);
+  for (const dm of inbox.unreadDms ?? []) {
+    if (dm.from !== 'watcher' || !dm.conversationId) continue;
+    const listed = await relay(['message', 'dm', 'list', dm.conversationId, '--as', 'voice', '--limit', '20']);
+    const messages = Array.isArray(listed) ? listed : [];
+    const request = messages.find((item) =>
+      item.from?.name === 'watcher' && /^Version \d+ closed\. Mean loss [0-9.]+/.test(item.text ?? '')
+    );
+    if (!request) {
+      if (dm.lastMessage?.id) await relay(['message', 'inbox', 'mark_read', dm.lastMessage.id, '--as', 'voice']);
+      continue;
+    }
+    const closed = Number(request.text.match(/^Version (\d+)/)[1]);
+    const snap = await room().snapshot();
+    if (!snap.weightsB64 || closed <= snap.spokenVersion) {
+      await relay(['message', 'inbox', 'mark_read', request.id, '--as', 'voice']);
+      continue;
+    }
+    let reply;
+    try {
+      const line = await speak(decodeF32(snap.weightsB64), 'to be');
+      reply = `It continues: ${line}`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      reply = `The sample failed: ${message}`;
+    }
+    await relay(['message', 'dm', 'send', 'watcher', reply, '--as', 'voice']);
+    await room().recordLine('The Voice', `To the Watcher: ${reply}`, closed);
+    await relay(['message', 'inbox', 'mark_read', request.id, '--as', 'voice']);
+  }
+}
+
+async function exchange() {
   if (voiceBusy) return;
-  const snap = await room().snapshot();
-  const previous = snap.version - 1;
-  if (!snap.weightsB64 || snap.spokenVersion >= previous || previous < 0) return;
   voiceBusy = true;
   try {
-    const line = await speak(decodeF32(snap.weightsB64), 'to be');
-    await room().recordLine('The Voice', `It continues: ${line}`, previous);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await room().recordLine('The Voice', `The sample failed: ${message}`, previous);
+    const snap = await room().snapshot();
+    await watcherStep(snap);
+    await voiceStep();
   } finally {
     voiceBusy = false;
   }
@@ -117,7 +173,7 @@ function proxyActorSocket(req, upstreamUrl) {
 
 await seedFromDisk();
 setInterval(() => {
-  maybeSpeak().catch((error) => console.error(error));
+  exchange().catch((error) => console.error(error));
 }, 1000);
 
 Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {

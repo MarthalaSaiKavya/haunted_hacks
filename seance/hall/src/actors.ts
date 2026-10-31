@@ -142,7 +142,10 @@ export class TrainingRoom extends Actor<Metadata, Incoming, RoomView> {
     }
 
     private async ensureClock(): Promise<void> {
-        if (this.deadlineMs === 0) await this.arm(Date.now() + ROUND_MS)
+        const due = this.alarm.get()
+        if (this.deadlineMs === 0 || this.deadlineMs <= Date.now() || due === null) {
+            await this.arm(Date.now() + ROUND_MS)
+        }
     }
 
     private async arm(deadlineMs: number): Promise<void> {
