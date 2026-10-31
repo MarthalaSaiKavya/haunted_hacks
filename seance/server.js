@@ -369,6 +369,9 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
   if (url.pathname === '/frames') {
     return serveFile(new URL('./public/frames.html', ROOT));
   }
+  if (url.pathname === '/intro') {
+    return serveFile(new URL('./public/intro.html', ROOT));
+  }
   if (url.pathname === '/codec.js') return serveFile(new URL('./codec.js', ROOT));
   if (url.pathname.startsWith('/engine/data/')) {
     const file = safeFile(ENGINE, `/data/${url.pathname.slice('/engine/data/'.length)}`);
