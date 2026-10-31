@@ -7,7 +7,7 @@
 // closeRound adds the token-weighted average onto the saved weights
 // and bumps the version from 4 to 5.
 
-import { Actor, type ActorSocket, Ephemeral, Persisted } from "durable-actors"
+import { Actor, type ActorSocket, Ephemeral, Persisted } from "terse-sdk/actor"
 
 const ROUND_MS = 12_000
 const GRACE_MS = 3_000
