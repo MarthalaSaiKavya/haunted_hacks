@@ -8,6 +8,12 @@ Open `/` on the demo screen. That page is Orca: the join link, every phone, and 
 
 `/frames` is only for a screen recording. It opens phone-sized copies of the join screen. Orca does not link to it.
 
+`seance/demo-phone.js` is the phone that keeps the demo moving. It joins as `demo`. Browser phones see that name and stay connected without starting a second model.
+
+```bash
+deno run --config seance/deno.json --allow-net --allow-read seance/demo-phone.js
+```
+
 Two processes:
 
 ```bash

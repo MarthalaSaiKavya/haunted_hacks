@@ -240,6 +240,8 @@ function leaderSeat() {
   if (clientId && !seats.some((seat) => seat.id === clientId)) {
     seats.push({ id: clientId, name: myName });
   }
+  const demo = seats.find((seat) => seat.name === 'demo');
+  if (demo) return demo;
   seats.sort((a, b) => a.name.localeCompare(b.name) || String(a.id).localeCompare(String(b.id)));
   return seats[0];
 }
