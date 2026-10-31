@@ -860,9 +860,14 @@ const $ = id => document.getElementById(id);
 // Pre-fill device name
 $('join-name').value = randomDeviceName();
 
-// Auto-join from ?session=<id> URL param — handled after handlers are registered below
-const _urlSession = new URLSearchParams(location.search).get('session');
+// ?session= joins a room. ?model= ?dataset= ?backend=cpu are applied first,
+// so a phone link can join the same nano/CPU run without tapping the controls.
+const _urlParams = new URLSearchParams(location.search);
+const _urlSession = _urlParams.get('session');
+const _lockCpu = _urlParams.get('backend') === 'cpu';
 if (_urlSession) $('join-id').value = _urlSession;
+if (_urlParams.get('model')) $('input-model').value = _urlParams.get('model');
+if (_urlParams.get('dataset')) $('input-dataset').value = _urlParams.get('dataset');
 const chart = $('chart');
 const ctx = chart.getContext('2d');
 
@@ -873,10 +878,12 @@ const ctx = chart.getContext('2d');
     if (jaxDevices.includes('webgpu')) {
       hasWebGPU = true;
       $('tog-gpu').disabled = false;
-      // Default to WebGPU when available
-      selectedBackend = 'gpu';
-      $('tog-gpu').classList.add('selected');
-      $('tog-cpu').classList.remove('selected');
+      // Default to WebGPU when available, unless the link asked for CPU.
+      if (!_lockCpu) {
+        selectedBackend = 'gpu';
+        $('tog-gpu').classList.add('selected');
+        $('tog-cpu').classList.remove('selected');
+      }
     }
   } catch (e) {
     console.warn('jax-js init:', e);
