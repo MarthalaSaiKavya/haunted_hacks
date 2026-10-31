@@ -32,16 +32,17 @@ function lrMultiplier(step, totalSteps) {
 
 // --- Weight serialization helpers ---
 // Copy every weight into one long list, in a fixed order, so it can be sent to the room.
+// dataSync() frees the array it reads. Take a ref first so the live weights survive
+// and the next guess can keep using them.
 function flattenParams(params) {
-  // tree.leaves() moves (consumes) the leaves — ref first so the original params stay alive
-  const leaves = tree.leaves(tree.ref(params));
+  const leaves = tree.leaves(params);
   const total = leaves.reduce((s, l) => s + l.size, 0);
   const out = new Float32Array(total);
   let offset = 0;
   for (const leaf of leaves) {
-    out.set(leaf.dataSync(), offset);
+    const view = leaf.ref;
+    out.set(view.dataSync(), offset);
     offset += leaf.size;
-    leaf.dispose(); // release the ref we added
   }
   return out;
 }

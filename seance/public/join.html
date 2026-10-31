@@ -206,9 +206,11 @@ let lesson = null;
 function noteDeadline(ms) {
   if (!ms || ms === roomDeadline) return;
   roomDeadline = ms;
-  // A deadline we only hear after it has passed is stale. Sending on it
-  // closes the round after one guess and makes every other phone start over.
-  deadlineArmed = ms > Date.now();
+  // Arm only a clock that is still ahead, so the first guess after a reload
+  // cannot close a round that already ended. Once armed, a guess that finishes
+  // after the clock has passed still counts: the step itself blocked the page.
+  if (ms > Date.now()) deadlineArmed = true;
+  else if (roundSteps < 1) deadlineArmed = false;
 }
 
 function trace(event, detail) {
@@ -312,6 +314,8 @@ async function runLoop(initialWeights, device) {
   $('contrib').textContent = `You are training on version ${version}. Nothing has been sent yet.`;
   lastStepAt = Date.now();
   while (!abortFlag) {
+    await maybeSend('between');
+    if (abortFlag) break;
     const event = await gen.next();
     if (event.done || abortFlag) break;
     const step = event.value;
@@ -344,9 +348,10 @@ async function maybeSend(reason) {
   const deadline = roomDeadline;
   if (sentDeadline === deadline) return;
   const now = Date.now();
-  if (now < deadline - 3000 || now > deadline + 2000) return;
+  if (now < deadline - 3000) return;
   publishing = true;
-  trace('send', `${reason} v${version}`);
+  const late = now > deadline ? 'late' : 'window';
+  trace('send', `${reason} v${version} ${late}`);
   try {
     const outcome = await sendOffering();
     if (outcome === 'ok') sentDeadline = deadline;
@@ -457,6 +462,8 @@ async function supervise() {
       const next = await runLoop(decodeF32(latestWeights), deviceName);
       if (next) latestWeights = next;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      trace('train-error', message);
       if (deviceName !== 'cpu') {
         deviceName = 'cpu';
         $('status').textContent = 'The fast engine failed. Retrying slowly.';
