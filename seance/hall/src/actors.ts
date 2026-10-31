@@ -1,4 +1,5 @@
-// The séance room, as one durable actor named TrainingRoom.
+// Orca is the one shared room, the orchestrator.
+// It is the only actor that keeps the averaged model.
 // One phone call runs at a time. Fields marked @Persisted are saved
 // before the call returns, so a restart keeps the weights.
 //
@@ -73,7 +74,7 @@ function applyAverage(weights: Float32Array, offerings: Offering[]): Float32Arra
     return base
 }
 
-export class TrainingRoom extends Actor<Metadata, Incoming, RoomView> {
+export class Orca extends Actor<Metadata, Incoming, RoomView> {
     @Persisted version = 0
     @Persisted weightsB64 = ""
     @Persisted lossHistory: LossPoint[] = []
@@ -184,7 +185,7 @@ export class TrainingRoom extends Actor<Metadata, Incoming, RoomView> {
         if (!(tokens > 0) || typeof loss !== "number") return
         const already = this.messages.some((note) => note.from === "The Watcher" && note.versionMark === this.version)
         if (!already) {
-            const name = socket.metadata.name || "a spirit"
+            const name = socket.metadata.name || "a worker"
             this.messages = [...this.messages, {
                 at: Date.now(),
                 from: "The Watcher",
@@ -251,7 +252,7 @@ export class TrainingRoom extends Actor<Metadata, Incoming, RoomView> {
             lossHistory: this.lossHistory,
             avgLoss: last ? last.avgLoss : null,
             messages: this.messages,
-            clients: sockets.map((socket) => ({ id: socket.id, name: socket.metadata.name || "spirit" })),
+            clients: sockets.map((socket) => ({ id: socket.id, name: socket.metadata.name || "worker" })),
             deadlineMs: this.deadlineMs,
             submissions: this.offerings.length,
             quorum: QUORUM,
@@ -262,15 +263,14 @@ export class TrainingRoom extends Actor<Metadata, Incoming, RoomView> {
 
 type Socket = ActorSocket<Metadata, RoomView>
 
-// One actor per phone. The id is that phone's saved id, not "hall".
-// It remembers this phone's last step and last weights. It does not average the shared model.
-type SpiritIncoming =
+// One Worker actor per phone. Orca is the orchestrator. A Worker only remembers that phone.
+type WorkerIncoming =
     | { type: "progress"; loss: number; step: number }
     | { type: "checkpoint"; weightsB64: string; loss: number; step: number }
 
-type SpiritView = {
-    type: "spirit"
-    spiritId: string
+type WorkerView = {
+    type: "worker"
+    workerId: string
     name: string
     lastLoss: number | null
     lastStep: number
@@ -278,7 +278,7 @@ type SpiritView = {
     hasWeights: boolean
 }
 
-export class Spirit extends Actor<Metadata, SpiritIncoming, SpiritView> {
+export class Worker extends Actor<Metadata, WorkerIncoming, WorkerView> {
     @Persisted name = ""
     @Persisted lastLoss: number | null = null
     @Persisted lastStep = 0
@@ -286,18 +286,18 @@ export class Spirit extends Actor<Metadata, SpiritIncoming, SpiritView> {
     @Persisted lastWeightsB64 = ""
 
     // What this phone last saved. Used when it reconnects.
-    async snapshot(): Promise<SpiritView> {
+    async snapshot(): Promise<WorkerView> {
         return await this.card()
     }
 
     // A phone opened its own actor. Tell it the step and loss from last time.
-    async onConnect(socket: ActorSocket<Metadata, SpiritView>): Promise<void> {
+    async onConnect(socket: ActorSocket<Metadata, WorkerView>): Promise<void> {
         if (socket.metadata.name) this.name = socket.metadata.name
         socket.send(await this.card())
     }
 
     // Either a live step, or the weights at the end of a round.
-    async onMessage(socket: ActorSocket<Metadata, SpiritView>, message: SpiritIncoming): Promise<void> {
+    async onMessage(socket: ActorSocket<Metadata, WorkerView>, message: WorkerIncoming): Promise<void> {
         switch (message.type) {
             case "progress":
                 if (typeof message.loss !== "number" || !(message.step >= 0)) return
@@ -315,15 +315,15 @@ export class Spirit extends Actor<Metadata, SpiritIncoming, SpiritView> {
                 return
             default: {
                 const unreachable: never = message
-                throw new Error(`unknown spirit message ${JSON.stringify(unreachable)}`)
+                throw new Error(`unknown worker message ${JSON.stringify(unreachable)}`)
             }
         }
     }
 
-    private async card(): Promise<SpiritView> {
+    private async card(): Promise<WorkerView> {
         return {
-            type: "spirit",
-            spiritId: this.id,
+            type: "worker",
+            workerId: this.id,
             name: this.name,
             lastLoss: this.lastLoss,
             lastStep: this.lastStep,

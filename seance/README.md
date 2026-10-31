@@ -1,6 +1,6 @@
 # Séance
 
-Phones train a tiny Shakespeare model and send only the change in the weights. The room is a durable actor (`seance/hall`, class `TrainingRoom`). `@Persisted` fields hold the version, weights, loss history, and transcript. The actor handles one update at a time and saves before it answers. Its WebSocket is what the page uses.
+Phones train a tiny Shakespeare model and send only the change in the weights. Orca (`seance/hall`, class `Orca`, id `orca`) is the one shared actor. It keeps the averaged weights. Each phone also has its own Worker actor, which only remembers that phone.
 
 Two processes:
 

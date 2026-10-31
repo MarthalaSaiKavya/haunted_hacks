@@ -1,5 +1,5 @@
 // Séance page and voice.
-// The training room itself is the TrainingRoom durable actor on port 7100.
+// Orca is the shared durable actor on port 7100. Each phone also has a Worker actor.
 // This process serves the page, hands the phone that actor's WebSocket,
 // and asks the saved weights for one real line after each round.
 
@@ -8,7 +8,7 @@ import { decodeF32 } from './codec.js';
 import { speak } from './infer.js';
 
 const PORT = 43131;
-const ACTOR_ID = 'hall';
+const ACTOR_ID = 'orca';
 const ROOT = new URL('./', import.meta.url);
 const STATE_URL = new URL('./state/hall.json', import.meta.url);
 const ENGINE = new URL('../', import.meta.url);
@@ -29,20 +29,23 @@ const asked = new Set();
 const relayBin = new URL('./relay/node_modules/.bin/agent-relay', import.meta.url).pathname;
 const relayCwd = new URL('./relay/', import.meta.url).pathname;
 
-// The one room every phone shares. The id "hall" is the actor's name.
+// The one shared model. Every phone sends its change here.
 function room() {
-  return actors.TrainingRoom.get(ACTOR_ID);
+  return actors.Orca.get(ACTOR_ID);
 }
 
 // If an older file has a higher version than the actor, copy it in once.
 async function seedFromDisk() {
-  let saved;
-  try {
-    saved = JSON.parse(Deno.readTextFileSync(STATE_URL));
-  } catch {
-    return;
+  let saved = null;
+  for (const name of ['./state/orca-seed.json', './state/hall.json']) {
+    try {
+      saved = JSON.parse(Deno.readTextFileSync(new URL(name, import.meta.url)));
+      break;
+    } catch {
+      saved = null;
+    }
   }
-  if (!saved.weightsB64) return;
+  if (!saved?.weightsB64) return;
   const version = await room().seed({
     version: saved.version ?? 0,
     weightsB64: saved.weightsB64,
@@ -50,7 +53,7 @@ async function seedFromDisk() {
     messages: saved.messages ?? [],
     spokenVersion: saved.spokenVersion ?? -1,
   });
-  console.log(`actor hall is on version ${version}`);
+  console.log(`orca is on version ${version}`);
 }
 
 // Run one Agent Relay command and return its JSON.
@@ -181,7 +184,11 @@ function proxyActorSocket(req, upstreamUrl) {
   return response;
 }
 
-await seedFromDisk();
+try {
+  await seedFromDisk();
+} catch (error) {
+  console.error('could not copy the saved model into Orca', error);
+}
 setInterval(() => {
   exchange().catch((error) => console.error(error));
 }, 1000);
@@ -198,29 +205,29 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/grant') {
-    let name = 'spirit';
-    let spiritId = '';
+    let name = 'worker';
+    let workerId = '';
     try {
       const body = await req.json();
-      name = String(body.name ?? 'spirit').trim().slice(0, 32) || 'spirit';
-      spiritId = String(body.spiritId ?? '');
+      name = String(body.name ?? 'worker').trim().slice(0, 32) || 'worker';
+      workerId = String(body.workerId ?? '');
     } catch {
       // keep the defaults
     }
-    if (!/^[A-Za-z0-9._-]{1,64}$/.test(spiritId)) spiritId = crypto.randomUUID();
-    const hallGrant = await actors.TrainingRoom.prepareWebsocket({
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(workerId)) workerId = crypto.randomUUID();
+    const orcaGrant = await actors.Orca.prepareWebsocket({
       actorId: ACTOR_ID,
       metadata: { name },
     });
-    const spiritGrant = await actors.Spirit.prepareWebsocket({
-      actorId: spiritId,
+    const workerGrant = await actors.Worker.prepareWebsocket({
+      actorId: workerId,
       metadata: { name },
     });
     const ticket = crypto.randomUUID();
-    const spiritTicket = crypto.randomUUID();
-    tickets.set(ticket, hallGrant.websocketUrl);
-    tickets.set(spiritTicket, spiritGrant.websocketUrl);
-    return Response.json({ ticket, spiritTicket, spiritId }, { headers: { 'cache-control': 'no-store' } });
+    const workerTicket = crypto.randomUUID();
+    tickets.set(ticket, orcaGrant.websocketUrl);
+    tickets.set(workerTicket, workerGrant.websocketUrl);
+    return Response.json({ ticket, workerTicket, workerId }, { headers: { 'cache-control': 'no-store' } });
   }
 
   if (url.pathname === '/health' || url.pathname === '/rooms') {

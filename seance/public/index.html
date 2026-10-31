@@ -95,7 +95,7 @@
       <h1>Séance</h1>
       <p class="lede">Every phone trains the same small Shakespeare model. The room is one durable actor: it applies each change in order and saves the weights before it answers. The Watcher reports the loss. The Voice reads what those weights now write.</p>
     </div>
-    <div class="seal"><b>ROOM</b><span>Hall</span></div>
+    <div class="seal"><b>ORCA</b><span>shared</span></div>
   </header>
 
   <div class="beats">
@@ -105,7 +105,7 @@
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="label">Spirits here</div><div class="num" id="spirits">0</div><div class="sub" id="presence">waking</div></div>
+    <div class="stat"><div class="label">Workers here</div><div class="num" id="spirits">0</div><div class="sub" id="presence">waking</div></div>
     <div class="stat"><div class="label">Room version</div><div class="num" id="version">—</div><div class="sub" id="weights">weights not saved yet</div></div>
     <div class="stat"><div class="label">Shared loss</div><div class="num" id="room-loss">—</div><div class="sub" id="loss-delta">mean of the last round</div></div>
     <div class="stat"><div class="label">This phone</div><div class="num" id="loss">—</div><div class="sub" id="step">waiting for the first step</div></div>
@@ -121,7 +121,7 @@
     </section>
     <section>
       <h2>Seats</h2>
-      <p class="meta" id="spirit-save">This phone does not have its own actor yet.</p>
+      <p class="meta" id="spirit-save">This phone does not have its own worker yet.</p>
       <div id="roster"></div>
     </section>
   </div>
@@ -184,12 +184,12 @@ function spiritName() {
   return `${a[Math.floor(Math.random() * a.length)]}-${b[Math.floor(Math.random() * b.length)]}`;
 }
 const myName = spiritName();
-let spiritId = localStorage.getItem('seance-spirit-id');
-if (!spiritId || !/^[A-Za-z0-9._-]{1,64}$/.test(spiritId)) {
-  spiritId = crypto.randomUUID();
-  localStorage.setItem('seance-spirit-id', spiritId);
+let workerId = localStorage.getItem('seance-worker-id');
+if (!workerId || !/^[A-Za-z0-9._-]{1,64}$/.test(workerId)) {
+  workerId = crypto.randomUUID();
+  localStorage.setItem('seance-worker-id', workerId);
 }
-let spiritWs = null;
+let workerWs = null;
 
 // How many weights are inside a base64 string. 192512 characters is 36,096 weights.
 function weightCount(encoded) {
@@ -407,8 +407,8 @@ async function runLoop(initialWeights, device) {
       if (ws && ws.readyState === WebSocket.OPEN && event.step % 4 === 0) {
         ws.send(JSON.stringify({ type: 'loss', loss: event.loss, tokens: event.batchSize ?? 8 }));
       }
-      if (spiritWs && spiritWs.readyState === WebSocket.OPEN && event.step % 4 === 0) {
-        spiritWs.send(JSON.stringify({ type: 'progress', loss: event.loss, step: event.step }));
+      if (workerWs && workerWs.readyState === WebSocket.OPEN && event.step % 4 === 0) {
+        workerWs.send(JSON.stringify({ type: 'progress', loss: event.loss, step: event.step }));
       }
       if (submitPending) {
         $('status').textContent = 'Sending this phone’s change to the room.';
@@ -440,8 +440,8 @@ function sendOffering() {
     loss: roundLossSum / roundSteps,
     baseVersion: version,
   }));
-  if (spiritWs && spiritWs.readyState === WebSocket.OPEN) {
-    spiritWs.send(JSON.stringify({
+  if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+    workerWs.send(JSON.stringify({
       type: 'checkpoint',
       weightsB64: encodeF32(flat),
       loss: roundLossSum / roundSteps,
@@ -486,18 +486,18 @@ async function startTraining(weightsB64) {
   }
 }
 
-// Paint this phone's own actor: its id, last step, and how many rounds it saved.
-function renderSpirit(msg) {
+// Paint this phone's Worker: its id, last step, and how many rounds it saved.
+function renderWorker(msg) {
   const loss = msg.lastLoss == null ? '—' : Number(msg.lastLoss).toFixed(2);
-  $('spirit-save').textContent = `Your actor ${String(msg.spiritId).slice(0, 8)} · step ${msg.lastStep} · loss ${loss} · ${msg.roundsSent} round${msg.roundsSent === 1 ? '' : 's'} saved here`;
+  $('spirit-save').textContent = `Worker ${String(msg.workerId).slice(0, 8)} · step ${msg.lastStep} · loss ${loss} · ${msg.roundsSent} round${msg.roundsSent === 1 ? '' : 's'} saved on this phone`;
 }
 
-function openSpirit(spiritTicket) {
+function openWorker(workerTicket) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  spiritWs = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${spiritTicket}`);
-  spiritWs.onmessage = (event) => {
+  workerWs = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${workerTicket}`);
+  workerWs.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    if (msg.type === 'spirit') renderSpirit(msg);
+    if (msg.type === 'worker') renderWorker(msg);
   };
 }
 
@@ -505,20 +505,20 @@ function openSpirit(spiritTicket) {
 async function connect() {
   $('status').textContent = 'Joining the circle.';
   let ticket;
-  let spiritTicket;
+  let workerTicket;
   try {
     const response = await fetch('/grant', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: myName, spiritId }),
+      body: JSON.stringify({ name: myName, workerId }),
     });
     if (!response.ok) throw new Error(`grant ${response.status}`);
     const grant = await response.json();
     ticket = grant.ticket;
-    spiritTicket = grant.spiritTicket;
-    if (grant.spiritId) {
-      spiritId = grant.spiritId;
-      localStorage.setItem('seance-spirit-id', spiritId);
+    workerTicket = grant.workerTicket;
+    if (grant.workerId) {
+      workerId = grant.workerId;
+      localStorage.setItem('seance-worker-id', workerId);
     }
   } catch (error) {
     $('status').textContent = 'Could not reach the actor.';
@@ -526,7 +526,7 @@ async function connect() {
     setTimeout(connect, 1500);
     return;
   }
-  openSpirit(spiritTicket);
+  openWorker(workerTicket);
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
   ws.onopen = () => {
@@ -555,7 +555,7 @@ async function connect() {
 
 $('leave').onclick = () => {
   abortFlag = true;
-  if (spiritWs) spiritWs.close();
+  if (workerWs) workerWs.close();
   if (ws) ws.close();
   $('status').textContent = 'You left the circle.';
 };

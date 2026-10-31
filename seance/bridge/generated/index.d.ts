@@ -23,16 +23,16 @@ export type {
 /**
  * Types for actor state and socket messages.
  * @example
- * type State = actors.Spirit.State
+ * type State = actors.Orca.State
  */
 export declare namespace actors {
-    namespace Spirit {
-        type Metadata = $ActorTypes["Spirit"]["Metadata"]
-        type Incoming = $ActorTypes["Spirit"]["Incoming"]
-        type Outgoing = $ActorTypes["Spirit"]["Outgoing"]
-        type State = $ActorTypes["Spirit"]["State"]
+    namespace Orca {
+        type Metadata = $ActorTypes["Orca"]["Metadata"]
+        type Incoming = $ActorTypes["Orca"]["Incoming"]
+        type Outgoing = $ActorTypes["Orca"]["Outgoing"]
+        type State = $ActorTypes["Orca"]["State"]
         interface Authorization {
-            actorName: "Spirit"
+            actorName: "Orca"
             actorId: string
             metadata: Metadata
             clientLocation?: {
@@ -41,13 +41,13 @@ export declare namespace actors {
             }
         }
     }
-    namespace TrainingRoom {
-        type Metadata = $ActorTypes["TrainingRoom"]["Metadata"]
-        type Incoming = $ActorTypes["TrainingRoom"]["Incoming"]
-        type Outgoing = $ActorTypes["TrainingRoom"]["Outgoing"]
-        type State = $ActorTypes["TrainingRoom"]["State"]
+    namespace Worker {
+        type Metadata = $ActorTypes["Worker"]["Metadata"]
+        type Incoming = $ActorTypes["Worker"]["Incoming"]
+        type Outgoing = $ActorTypes["Worker"]["Outgoing"]
+        type State = $ActorTypes["Worker"]["State"]
         interface Authorization {
-            actorName: "TrainingRoom"
+            actorName: "Worker"
             actorId: string
             metadata: Metadata
             clientLocation?: {
@@ -60,33 +60,11 @@ export declare namespace actors {
 /**
  * Types for actor state and methods.
  * @example
- * type State = actors.Spirit.State
+ * type State = actors.Orca.State
  */
 export declare namespace actors {
-    namespace Spirit {
-        type Stub = $ActorTypes["Spirit"]["Methods"]
-        interface $MethodTypes {
-            ["snapshot"]: {
-                Args: Parameters<Stub["snapshot"]>
-                Result: Awaited<ReturnType<Stub["snapshot"]>>
-            }
-        }
-        interface Methods extends $MethodTypes {}
-        /**
-         * Types for a method's arguments and return value.
-         * @example
-         * type Args = actors.Spirit.Methods["snapshot"]["Args"]
-         * type Result = actors.Spirit.Methods["snapshot"]["Result"]
-         */
-        namespace Methods {
-            namespace snapshot {
-                type Args = $MethodTypes["snapshot"]["Args"]
-                type Result = $MethodTypes["snapshot"]["Result"]
-            }
-        }
-    }
-    namespace TrainingRoom {
-        type Stub = $ActorTypes["TrainingRoom"]["Methods"]
+    namespace Orca {
+        type Stub = $ActorTypes["Orca"]["Methods"]
         interface $MethodTypes {
             ["recordLine"]: {
                 Args: Parameters<Stub["recordLine"]>
@@ -105,8 +83,8 @@ export declare namespace actors {
         /**
          * Types for a method's arguments and return value.
          * @example
-         * type Args = actors.TrainingRoom.Methods["recordLine"]["Args"]
-         * type Result = actors.TrainingRoom.Methods["recordLine"]["Result"]
+         * type Args = actors.Orca.Methods["recordLine"]["Args"]
+         * type Result = actors.Orca.Methods["recordLine"]["Result"]
          */
         namespace Methods {
             namespace recordLine {
@@ -123,35 +101,57 @@ export declare namespace actors {
             }
         }
     }
+    namespace Worker {
+        type Stub = $ActorTypes["Worker"]["Methods"]
+        interface $MethodTypes {
+            ["snapshot"]: {
+                Args: Parameters<Stub["snapshot"]>
+                Result: Awaited<ReturnType<Stub["snapshot"]>>
+            }
+        }
+        interface Methods extends $MethodTypes {}
+        /**
+         * Types for a method's arguments and return value.
+         * @example
+         * type Args = actors.Worker.Methods["snapshot"]["Args"]
+         * type Result = actors.Worker.Methods["snapshot"]["Result"]
+         */
+        namespace Methods {
+            namespace snapshot {
+                type Args = $MethodTypes["snapshot"]["Args"]
+                type Result = $MethodTypes["snapshot"]["Result"]
+            }
+        }
+    }
 }
 /**
  * Call actor methods from your backend.
  * @example
- * const actor = actors.Spirit.get("actor-id")
+ * const actor = actors.Orca.get("actor-id")
  */
 export declare const actors: {
-    Spirit: {
-        get(actorId: string, transport?: import("./runtime/index.js").ActorRpcTransport): actors.Spirit.Stub
+    Orca: {
+        get(actorId: string, transport?: import("./runtime/index.js").ActorRpcTransport): actors.Orca.Stub
         /**
          * Allow a frontend connection after your backend checks the user's access.
          * @example
-         * const grant = await actors.Spirit.prepareWebsocket({ actorId: "actor-id", metadata })
+         * const grant = await actors.Orca.prepareWebsocket({ actorId: "actor-id", metadata })
          */
         prepareWebsocket(
-            authorization: Omit<actors.Spirit.Authorization, "actorName">,
+            authorization: Omit<actors.Orca.Authorization, "actorName">,
             options?: import("./runtime/index.js").SocketProxyOptions,
             dependencies?: import("./runtime/index.js").SocketProxyDependencies
         ): Promise<import("./runtime/index.js").SocketGrant>
     }
-    TrainingRoom: {
-        get(actorId: string, transport?: import("./runtime/index.js").ActorRpcTransport): actors.TrainingRoom.Stub
+    Worker: {
+        get(actorId: string, transport?: import("./runtime/index.js").ActorRpcTransport): actors.Worker.Stub
         /**
          * Allow a frontend connection after your backend checks the user's access.
          * @example
-         * const grant = await actors.TrainingRoom.prepareWebsocket({ actorId: "actor-id", metadata })
+         * const grant = await actors.Worker.prepareWebsocket({ actorId: "actor-id", metadata })
          */
         prepareWebsocket(
-            authorization: Omit<actors.TrainingRoom.Authorization, "actorName">,
+            authorization: Omit<actors.Worker.Authorization, "actorName">,
             options?: import("./runtime/index.js").SocketProxyOptions,
             dependencies?: import("./runtime/index.js").SocketProxyDependencies
         ): Promise<import("./runtime/index.js").SocketGrant>
@@ -160,17 +160,17 @@ export declare const actors: {
 /**
  * The actor and connection details approved by your backend.
  * @example
- * const authorization: ActorAuthorization = { actorName: "Spirit", actorId: "actor-id", metadata }
+ * const authorization: ActorAuthorization = { actorName: "Orca", actorId: "actor-id", metadata }
  */
-export type ActorAuthorization = actors.Spirit.Authorization | actors.TrainingRoom.Authorization
+export type ActorAuthorization = actors.Orca.Authorization | actors.Worker.Authorization
 /**
  * Allow a frontend connection after your backend checks the user's access.
  * @example
- * const grant = await ActorProxy.handle({ actorName: "Spirit", actorId: "actor-id", metadata })
+ * const grant = await ActorProxy.handle({ actorName: "Orca", actorId: "actor-id", metadata })
  */
 export declare class ActorProxy extends $SocketProxy<{
-    ["Spirit"]: import("./runtime/index.js").ProxyActor<actors.Spirit.Metadata>
-    ["TrainingRoom"]: import("./runtime/index.js").ProxyActor<actors.TrainingRoom.Metadata>
+    ["Orca"]: import("./runtime/index.js").ProxyActor<actors.Orca.Metadata>
+    ["Worker"]: import("./runtime/index.js").ProxyActor<actors.Worker.Metadata>
 }> {
     constructor(
         options?: import("./runtime/index.js").SocketProxyOptions,

@@ -14,26 +14,13 @@ export {
 /**
  * Call actor methods from your backend.
  * @example
- * const actor = actors.Spirit.get("actor-id")
+ * const actor = actors.Orca.get("actor-id")
  */
 export const actors = {
-    ["Spirit"]: {
-        get(actorId, transport) {
-            return $createActorStub("Spirit", actorId, [{ name: "snapshot", result: "value" }], transport)
-        },
-        /**
-         * Allow a frontend connection after your backend checks the user's access.
-         * @example
-         * const grant = await actors.Spirit.prepareWebsocket({ actorId: "actor-id", metadata })
-         */
-        prepareWebsocket(authorization, options = {}, dependencies = {}) {
-            return new ActorProxy(options, dependencies).handle({ ...authorization, actorName: "Spirit" })
-        }
-    },
-    ["TrainingRoom"]: {
+    ["Orca"]: {
         get(actorId, transport) {
             return $createActorStub(
-                "TrainingRoom",
+                "Orca",
                 actorId,
                 [
                     { name: "recordLine", result: "void" },
@@ -46,21 +33,34 @@ export const actors = {
         /**
          * Allow a frontend connection after your backend checks the user's access.
          * @example
-         * const grant = await actors.TrainingRoom.prepareWebsocket({ actorId: "actor-id", metadata })
+         * const grant = await actors.Orca.prepareWebsocket({ actorId: "actor-id", metadata })
          */
         prepareWebsocket(authorization, options = {}, dependencies = {}) {
-            return new ActorProxy(options, dependencies).handle({ ...authorization, actorName: "TrainingRoom" })
+            return new ActorProxy(options, dependencies).handle({ ...authorization, actorName: "Orca" })
+        }
+    },
+    ["Worker"]: {
+        get(actorId, transport) {
+            return $createActorStub("Worker", actorId, [{ name: "snapshot", result: "value" }], transport)
+        },
+        /**
+         * Allow a frontend connection after your backend checks the user's access.
+         * @example
+         * const grant = await actors.Worker.prepareWebsocket({ actorId: "actor-id", metadata })
+         */
+        prepareWebsocket(authorization, options = {}, dependencies = {}) {
+            return new ActorProxy(options, dependencies).handle({ ...authorization, actorName: "Worker" })
         }
     }
 }
 /**
  * Allow a frontend connection after your backend checks the user's access.
  * @example
- * const grant = await ActorProxy.handle({ actorName: "Spirit", actorId: "actor-id", metadata })
+ * const grant = await ActorProxy.handle({ actorName: "Orca", actorId: "actor-id", metadata })
  */
 export class ActorProxy extends $SocketProxy {
     constructor(options = {}, dependencies = {}) {
-        super({ ["Spirit"]: {}, ["TrainingRoom"]: {} }, options, dependencies)
+        super({ ["Orca"]: {}, ["Worker"]: {} }, options, dependencies)
     }
     handle(authorization) {
         return super.handle(authorization)
