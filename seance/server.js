@@ -256,6 +256,14 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
     return Response.json({ ticket, workerTicket, workerId }, { headers: { 'cache-control': 'no-store' } });
   }
 
+  if (url.pathname === '/weights') {
+    const snap = await room().snapshot();
+    return Response.json({
+      version: snap.version,
+      weightsB64: snap.weightsB64,
+    }, { headers: { 'cache-control': 'no-store' } });
+  }
+
   if (url.pathname === '/live') {
     const snap = await room().snapshot();
     return Response.json({

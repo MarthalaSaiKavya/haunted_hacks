@@ -141,6 +141,7 @@ let myLosses = [];
 let phase = 'loss';
 let latestWeights = '';
 let sentForVersion = -1;
+let loadingWeights = false;
 
 function setPhase(next) {
   phase = next;
@@ -372,6 +373,24 @@ async function startTraining(weightsB64) {
   }
 }
 
+async function loadWeights() {
+  if (loadingWeights) return;
+  loadingWeights = true;
+  try {
+    const response = await fetch('/weights', { cache: 'no-store' });
+    if (!response.ok) return;
+    const body = await response.json();
+    if (body.version != null) version = body.version;
+    if (!body.weightsB64) return;
+    latestWeights = body.weightsB64;
+    if (!running) startTraining(latestWeights);
+  } catch {
+    // The next tick tries again. The socket hello is too big to rely on.
+  } finally {
+    loadingWeights = false;
+  }
+}
+
 function openWorker(workerTicket) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   workerWs = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${workerTicket}`);
@@ -404,7 +423,10 @@ async function connect() {
   openWorker(workerTicket);
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
-  ws.onopen = () => { $('status').textContent = 'Connected. Waiting for the shared weights.'; };
+  ws.onopen = () => {
+    $('status').textContent = 'Connected. Loading the shared weights.';
+    loadWeights();
+  };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'state' || msg.type === 'state_update') return;
@@ -446,7 +468,9 @@ $('leave').onclick = () => {
 connect();
 draw();
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN && !running && latestWeights) startTraining(latestWeights);
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!latestWeights) loadWeights();
+  else if (!running) startTraining(latestWeights);
 }, 4000);
 </script>
 </body>
