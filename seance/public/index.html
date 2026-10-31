@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Séance</title>
+<title>Orca · the shared model</title>
 <style>
   :root {
     --bg: #0e0c0a;
@@ -14,76 +14,60 @@
     --line: #3c332c;
     --ember: #e39a56;
     --ember-2: #f1d3a8;
-    --moss: #d9c48a;
     --good: #c6d3a1;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); }
-  body {
-    font-family: Georgia, "Iowan Old Style", Palatino, serif;
-    min-height: 100vh;
-  }
-  button, .num, .meta, .kicker, .seat, .fact {
-    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 1.1rem 1rem 2.5rem; }
-  header {
+  body { font-family: Georgia, "Iowan Old Style", Palatino, serif; min-height: 100vh; }
+  button, .num, .meta, .kicker, table, .url, .chip, .node { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 1.1rem 1rem 2.4rem; }
+  .kicker { color: var(--ember); letter-spacing: 0.18em; font-size: 0.68rem; text-transform: uppercase; }
+  h1 { font-weight: 500; font-size: clamp(2.6rem, 6vw, 4.4rem); line-height: 0.9; margin: 0.2rem 0; }
+  h2 { margin: 0 0 0.45rem; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); font-weight: 500; }
+  p { margin: 0; }
+  .lede { color: var(--dim); max-width: 40rem; line-height: 1.45; }
+  header { display: flex; justify-content: space-between; gap: 1rem; align-items: end; border-bottom: 1px solid var(--line); padding-bottom: 0.85rem; }
+  .join {
+    margin: 0.9rem 0;
+    background: var(--bg-2);
+    border: 1px solid var(--ember);
+    padding: 0.8rem 0.9rem;
     display: grid;
     grid-template-columns: 1fr auto;
-    gap: 1rem;
-    align-items: end;
-    border-bottom: 1px solid var(--line);
-    padding-bottom: 0.9rem;
+    gap: 0.7rem;
+    align-items: center;
   }
-  .kicker { color: var(--ember); letter-spacing: 0.22em; font-size: 0.68rem; text-transform: uppercase; }
-  h1 { font-weight: 500; font-size: clamp(3rem, 8vw, 5.2rem); line-height: 0.85; margin: 0.25rem 0; letter-spacing: -0.03em; }
-  .lede { color: var(--dim); max-width: 38rem; margin: 0; line-height: 1.45; font-size: 1.02rem; }
-  .seal {
-    width: 92px; height: 92px; border: 1px solid var(--ember); border-radius: 50%;
-    display: grid; place-items: center; text-align: center; color: var(--ember-2);
-  }
-  .seal b { display: block; font-size: 0.72rem; letter-spacing: 0.16em; }
-  .seal span { font-family: Georgia, serif; font-size: 1.35rem; }
-  .beats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin: 0.9rem 0; }
-  .beat { border-top: 1px solid var(--line); padding-top: 0.45rem; color: var(--dim); font-size: 0.92rem; }
-  .beat strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 0.15rem; }
-  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; margin-bottom: 0.8rem; }
-  .stat { background: var(--bg-2); border: 1px solid var(--line); padding: 0.7rem 0.75rem 0.6rem; }
+  .url { color: var(--ember-2); font-size: 1.05rem; word-break: break-all; }
+  button { background: transparent; color: var(--ink); border: 1px solid var(--line); padding: 0.5rem 0.75rem; cursor: pointer; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.7rem; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); padding: 0.7rem 0.75rem; }
   .stat .label { color: var(--faint); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; }
-  .stat .num { font-size: 1.55rem; margin-top: 0.2rem; color: var(--ember-2); font-variant-numeric: tabular-nums; }
-  .stat .sub { color: var(--dim); font-size: 0.75rem; margin-top: 0.15rem; }
-  .stage { display: grid; grid-template-columns: 1.45fr 0.8fr; gap: 0.7rem; }
+  .stat .num { font-size: 1.7rem; margin-top: 0.15rem; color: var(--ember-2); font-variant-numeric: tabular-nums; }
+  .stat .sub { color: var(--dim); font-size: 0.78rem; margin-top: 0.15rem; }
+  .grid { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 0.7rem; }
   section { background: var(--bg-2); border: 1px solid var(--line); padding: 0.85rem; }
-  h2 { margin: 0 0 0.55rem; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ember); font-weight: 500; }
-  .quote {
-    min-height: 7.5rem;
-    display: flex; flex-direction: column; justify-content: flex-end;
-    background:
-      radial-gradient(circle at 50% 0%, rgba(227,154,86,0.08), transparent 55%),
-      var(--bg-2);
-  }
-  .quote .utterance { font-size: clamp(1.55rem, 3vw, 2.2rem); line-height: 1.25; margin: 0.55rem 0 0.8rem; }
-  .quote .waiting { color: var(--faint); font-size: 1.2rem; }
-  #status { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; color: var(--good); margin: 0; letter-spacing: 0.01em; }
-  canvas { width: 100%; height: 220px; display: block; background: #0c0a09; }
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin-top: 0.7rem; }
-  .seat { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.45rem 0; border-top: 1px solid var(--line); color: var(--ink); }
-  .seat.you { color: var(--good); }
-  .dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--ember); display: inline-block; margin-right: 0.4rem; }
-  .line { padding: 0.55rem 0; border-top: 1px solid var(--line); }
-  .line .who { color: var(--ember-2); }
-  .line .when { color: var(--faint); float: right; font-size: 0.72rem; }
-  #talk { max-height: 280px; overflow: auto; }
-  #error { color: #e7b2a8; min-height: 1.2em; }
-  .actions { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 0.8rem; }
-  button { background: transparent; color: var(--dim); border: 1px solid var(--line); padding: 0.45rem 0.7rem; }
-  .live { color: var(--good); }
+  .flow { display: grid; grid-template-columns: 1.4fr auto 0.7fr; gap: 0.6rem; align-items: center; margin-top: 0.4rem; }
+  .phones { display: flex; flex-direction: column; gap: 0.35rem; }
+  .chip { display: flex; justify-content: space-between; gap: 0.6rem; border: 1px solid var(--line); padding: 0.4rem 0.55rem; color: var(--ink); }
+  .chip b { color: var(--ember-2); font-weight: 500; }
+  .arrow { color: var(--faint); text-align: center; font-size: 0.75rem; line-height: 1.35; }
+  .node { border: 1px solid var(--ember); min-height: 5.5rem; display: grid; place-items: center; text-align: center; color: var(--ember-2); padding: 0.4rem; }
+  .node strong { display: block; letter-spacing: 0.14em; font-size: 0.72rem; }
+  canvas { width: 100%; height: 240px; display: block; background: #0c0a09; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th, td { text-align: left; padding: 0.4rem 0.3rem; border-top: 1px solid var(--line); font-weight: 400; }
+  th { color: var(--faint); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
+  .save { color: var(--dim); line-height: 1.45; margin-top: 0.35rem; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; margin: 0.7rem 0; }
+  .step { border-top: 2px solid var(--ember); padding-top: 0.4rem; color: var(--dim); font-size: 0.92rem; }
+  .step strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 0.15rem; }
+  #status { color: var(--good); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; margin-top: 0.45rem; }
+  #error { color: #e7b2a8; min-height: 1.1em; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; }
+  .phone-only { display: none; color: var(--ember-2); margin-top: 0.6rem; }
   @media (max-width: 860px) {
-    header, .beats, .stats, .stage, .split { grid-template-columns: 1fr; }
-    .seal { display: none; }
-    .stats { grid-template-columns: 1fr 1fr; }
-    canvas { height: 160px; }
-    #talk { max-height: 220px; }
+    header, .stats, .grid, .flow, .steps, .join { grid-template-columns: 1fr; }
+    .phone-only { display: block; }
+    canvas { height: 180px; }
   }
 </style>
 </head>
@@ -91,133 +75,103 @@
 <div class="wrap">
   <header>
     <div>
-      <div class="kicker">One room · many phones · one model</div>
-      <h1>Séance</h1>
-      <p class="lede">Every phone trains the same small Shakespeare model. The room is one durable actor: it applies each change in order and saves the weights before it answers. The Watcher reports the loss. The Voice reads what those weights now write.</p>
+      <div class="kicker">Main screen · one shared model</div>
+      <h1>Orca</h1>
+      <p class="lede">Orca keeps the only copy of a tiny Shakespeare model. Each phone trains for a few seconds and sends how its weights moved. Orca adds that change, saves it, and the version goes up. The loss is how wrong the guesses were. It starts near 6.9. Lower is better.</p>
+      <p class="phone-only"><a href="/join" style="color:#f1d3a8">This is the shared screen. On a phone, open the join page.</a></p>
     </div>
-    <div class="seal"><b>ORCA</b><span>shared</span></div>
   </header>
 
-  <div class="beats">
-    <div class="beat"><strong>1 · This phone trains</strong>Forward and backward stay on the device. Only the change in the weights leaves.</div>
-    <div class="beat"><strong>2 · The room averages</strong>One actor applies every offering, in order, and saves the result before it answers.</div>
-    <div class="beat"><strong>3 · They talk</strong>The Watcher DMs the Voice on Agent Relay with the measured loss. The Voice replies with the line the weights wrote.</div>
+  <div class="join">
+    <div>
+      <div class="kicker">Phones join here</div>
+      <div class="url" id="join-url"></div>
+    </div>
+    <button id="copy" type="button">Copy link</button>
+  </div>
+
+  <div class="steps">
+    <div class="step"><strong>1 · A phone reads</strong>A few lines of Shakespeare, on that phone.</div>
+    <div class="step"><strong>2 · It guesses</strong>The next piece of the line. The loss is how wrong it was.</div>
+    <div class="step"><strong>3 · It sends the change</strong>Not the whole model. Only how the 36,096 weights moved.</div>
+    <div class="step"><strong>4 · Orca saves</strong>The first phone to send this round moves the shared copy. The version goes up.</div>
   </div>
 
   <div class="stats">
-    <div class="stat"><div class="label">Workers here</div><div class="num" id="spirits">0</div><div class="sub" id="presence">waking</div></div>
-    <div class="stat"><div class="label">Room version</div><div class="num" id="version">—</div><div class="sub" id="weights">weights not saved yet</div></div>
-    <div class="stat"><div class="label">Shared loss</div><div class="num" id="room-loss">—</div><div class="sub" id="loss-delta">mean of the last round</div></div>
-    <div class="stat"><div class="label">This phone</div><div class="num" id="loss">—</div><div class="sub" id="step">waiting for the first step</div></div>
-    <div class="stat"><div class="label">Round closes</div><div class="num" id="countdown">—</div><div class="sub" id="offer">no offering yet</div></div>
+    <div class="stat"><div class="label">Phones connected</div><div class="num" id="phones">0</div><div class="sub" id="presence">waiting for a phone</div></div>
+    <div class="stat"><div class="label">Shared version</div><div class="num" id="version">—</div><div class="sub" id="weights">weights stay when a phone leaves</div></div>
+    <div class="stat"><div class="label">Shared loss</div><div class="num" id="room-loss">—</div><div class="sub" id="loss-delta">starts near 6.9</div></div>
+    <div class="stat"><div class="label">This round</div><div class="num" id="countdown">—</div><div class="sub" id="offer">first send moves the model</div></div>
   </div>
 
-  <div class="stage">
-    <section class="quote">
-      <h2>The model just wrote</h2>
-      <p class="utterance waiting" id="quote">The Voice speaks after the first shared round.</p>
-      <p id="status">joining the circle</p>
+  <section style="margin-bottom:0.7rem">
+    <h2>Who is training right now</h2>
+    <div class="flow">
+      <div class="phones" id="chips"><div class="chip"><b>No phone yet</b><span>open the link</span></div></div>
+      <div class="arrow">each phone sends<br>only its change<br>↓</div>
+      <div class="node"><strong>ORCA</strong><span id="orca-blurb">one saved copy</span></div>
+    </div>
+    <p class="save" id="save-line">When a phone sends, its name, piece count, and loss show up here.</p>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>Shared loss after each version</h2>
+      <canvas id="chart" width="720" height="240"></canvas>
+      <p id="status">Connecting to Orca.</p>
       <p id="error"></p>
     </section>
     <section>
-      <h2>Seats</h2>
-      <p class="meta" id="spirit-save">This phone does not have its own worker yet.</p>
-      <div id="roster"></div>
+      <h2>Phones this round</h2>
+      <table>
+        <thead><tr><th>Phone</th><th>Loss now</th><th>Pieces</th><th>State</th></tr></thead>
+        <tbody id="roster"><tr><td colspan="4">No phone is connected.</td></tr></tbody>
+      </table>
+      <h2 style="margin-top:0.9rem">Recent versions</h2>
+      <table>
+        <thead><tr><th>Version</th><th>Loss</th><th>Change</th></tr></thead>
+        <tbody id="versions"><tr><td colspan="3">No version has closed yet.</td></tr></tbody>
+      </table>
     </section>
-  </div>
-
-  <div class="split">
-    <section>
-      <h2>Shared loss after each round</h2>
-      <canvas id="chart" width="720" height="220"></canvas>
-    </section>
-    <section>
-      <h2>The circle</h2>
-      <div id="talk"></div>
-    </section>
-  </div>
-
-  <div class="actions">
-    <div class="meta" id="model-note">nano · Shakespeare · 1,024 tokens · CPU</div>
-    <button id="leave" type="button">Leave the circle</button>
   </div>
 </div>
-
-<script type="importmap">
-{
-  "imports": {
-    "@jax-js/jax": "/vendor/jax/dist/index.js?v=2",
-    "@jax-js/optax": "/vendor/optax/dist/index.js",
-    "/codec.js": "/codec.js",
-    "/engine/train.js": "/engine/train.js"
-  }
-}
-</script>
 <script type="module">
-import { init, defaultDevice } from '@jax-js/jax';
-import { train, buildBPETokenizer } from '/engine/train.js';
-import { encodeF32, decodeF32 } from '/codec.js';
-
 const $ = (id) => document.getElementById(id);
+const joinUrl = `${location.origin}/join`;
+$('join-url').textContent = joinUrl;
+$('copy').onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(joinUrl);
+    $('copy').textContent = 'Copied';
+  } catch {
+    $('copy').textContent = 'Select the link';
+  }
+};
+
 let ws = null;
-let clientId = null;
-let version = 0;
 let deadlineMs = 0;
-let running = false;
-let abortFlag = false;
-let submitPending = false;
-let trainingHandle = {};
-let roundStart = null;
-let roundSteps = 0;
-let roundLossSum = 0;
-let roundTokens = 0;
-let seenTalk = 0;
-let turn = 0;
 let roomHistory = [];
-let submissions = 0;
-let quorum = 1;
+let phones = [];
 
-// A short name for this phone, such as "ash-moth". New on every refresh.
-function spiritName() {
-  const a = ['pale', 'ash', 'quiet', 'late', 'dim', 'old', 'soft', 'thin'];
-  const b = ['candle', 'moth', 'crow', 'bell', 'glass', 'psalm', 'wick', 'dust'];
-  return `${a[Math.floor(Math.random() * a.length)]}-${b[Math.floor(Math.random() * b.length)]}`;
+function clockTick() {
+  if (!deadlineMs) return;
+  const seconds = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+  $('countdown').textContent = seconds + 's';
 }
-const myName = spiritName();
-let workerId = localStorage.getItem('seance-worker-id');
-if (!workerId || !/^[A-Za-z0-9._-]{1,64}$/.test(workerId)) {
-  workerId = crypto.randomUUID();
-  localStorage.setItem('seance-worker-id', workerId);
-}
-let workerWs = null;
+setInterval(clockTick, 250);
 
-// How many weights are inside a base64 string. 192512 characters is 36,096 weights.
-function weightCount(encoded) {
-  if (!encoded) return 0;
-  const pad = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
-  return (encoded.length * 3 / 4 - pad) / 4;
-}
-
-// Turn a timestamp into a clock time in Pacific Time, for the transcript.
-function clock(ms) {
-  return new Date(ms).toLocaleTimeString('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-// Draw the shared-loss chart. The left axis is loss. The bottom axis is room version.
 function draw() {
   const canvas = $('chart');
   const rect = canvas.parentElement.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(320, rect.width) * dpr;
-  canvas.height = 220 * dpr;
+  const cssH = window.innerWidth < 860 ? 180 : 240;
+  canvas.width = Math.max(280, rect.width) * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.height = cssH + 'px';
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const w = canvas.width / dpr;
-  const h = 220;
+  const h = cssH;
   ctx.fillStyle = '#0c0a09';
   ctx.fillRect(0, 0, w, h);
   const pad = { l: 46, r: 12, t: 16, b: 28 };
@@ -228,39 +182,31 @@ function draw() {
   ctx.textBaseline = 'middle';
   if (roomHistory.length === 0) {
     ctx.textAlign = 'left';
-    ctx.fillText('The shared curve appears after the first round.', pad.l, h / 2);
+    ctx.fillText('The curve starts when the first phone sends a change.', pad.l, h / 2);
     return;
   }
   const values = roomHistory.map((row) => row.avgLoss);
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  if (max === min) { min -= 0.5; max += 0.5; }
-  const span = max - min;
-  min -= span * 0.12;
-  max += span * 0.12;
+  let min = Math.min(...values, 4);
+  let max = Math.max(...values, 6.9);
+  const span = Math.max(0.4, max - min);
+  min -= span * 0.08;
+  max += span * 0.08;
   for (let i = 0; i <= 3; i++) {
     const y = pad.t + ((h - pad.t - pad.b) * i) / 3;
     ctx.beginPath();
     ctx.moveTo(pad.l, y);
     ctx.lineTo(w - pad.r, y);
     ctx.stroke();
-    const label = max - ((max - min) * i) / 3;
-    ctx.fillText(label.toFixed(2), pad.l - 8, y);
+    ctx.fillText((max - ((max - min) * i) / 3).toFixed(2), pad.l - 8, y);
   }
-  const xAt = (i) => {
-    if (roomHistory.length === 1) return (pad.l + w - pad.r) / 2;
-    return pad.l + (i / (roomHistory.length - 1)) * (w - pad.l - pad.r);
-  };
+  const xAt = (i) => roomHistory.length === 1
+    ? (pad.l + w - pad.r) / 2
+    : pad.l + (i / (roomHistory.length - 1)) * (w - pad.l - pad.r);
   const yAt = (value) => pad.t + (1 - (value - min) / (max - min)) * (h - pad.t - pad.b);
   ctx.beginPath();
   ctx.strokeStyle = '#e39a56';
   ctx.lineWidth = 2;
-  values.forEach((value, i) => {
-    const x = xAt(i);
-    const y = yAt(value);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
+  values.forEach((value, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(value)) : ctx.lineTo(xAt(i), yAt(value))));
   ctx.stroke();
   ctx.fillStyle = '#f1d3a8';
   values.forEach((value, i) => {
@@ -271,294 +217,96 @@ function draw() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillStyle = '#7d7268';
-  const last = roomHistory.length - 1;
-  ctx.fillText('v' + roomHistory[0].version, xAt(0), h - 20);
-  if (last > 0) ctx.fillText('v' + roomHistory[last].version, xAt(last), h - 20);
+  ctx.fillText('v' + roomHistory[0].version, xAt(0), h - 18);
+  if (roomHistory.length > 1) ctx.fillText('v' + roomHistory.at(-1).version, xAt(roomHistory.length - 1), h - 18);
+}
+window.addEventListener('resize', draw);
+
+function renderPhones(list) {
+  phones = list || [];
+  $('phones').textContent = String(phones.length);
+  $('presence').textContent = phones.length === 0 ? 'waiting for a phone' : (phones.length === 1 ? '1 phone training' : `${phones.length} phones training`);
+  $('chips').innerHTML = phones.length
+    ? phones.map((phone) => `<div class="chip"><b>${phone.name}</b><span>${phone.loss == null ? 'just joined' : 'loss ' + Number(phone.loss).toFixed(2)}</span></div>`).join('')
+    : '<div class="chip"><b>No phone yet</b><span>open the link</span></div>';
+  $('roster').innerHTML = phones.length
+    ? phones.map((phone) => `<tr><td>${phone.name}</td><td>${phone.loss == null ? '—' : Number(phone.loss).toFixed(2)}</td><td>${phone.tokens || 0}</td><td>${phone.offered ? 'sending' : 'training'}</td></tr>`).join('')
+    : '<tr><td colspan="4">No phone is connected.</td></tr>';
 }
 
-// Fill the seat list. The phone you are on is marked "this phone".
-function renderPeople(clients) {
-  $('spirits').textContent = String(clients.length);
-  $('roster').innerHTML = clients.map((client) => {
-    const mine = client.id === clientId;
-    return `<div class="seat${mine ? ' you' : ''}"><span><span class="dot"></span>${client.name}</span><span>${mine ? 'this phone' : 'training'}</span></div>`;
-  }).join('') || '<div class="seat">The chairs are empty.</div>';
-}
-
-// Fill the transcript and lift the latest "It continues" line into the big quote.
-function renderTalk(messages) {
-  if (messages.length === seenTalk && $('talk').childElementCount) return;
-  const box = $('talk');
-  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  seenTalk = messages.length;
-  box.innerHTML = messages.map((message) =>
-    `<div class="line"><span class="when">${clock(message.at)} PT</span><span class="who">${message.from}.</span> ${message.text}</div>`
-  ).join('') || '<div class="line">No one has spoken.</div>';
-  if (nearBottom) box.scrollTop = box.scrollHeight;
-  let quote = '';
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const text = messages[i].text;
-    if (messages[i].from === 'The Voice' && text.startsWith('It continues:')) {
-      quote = text.slice('It continues:'.length).trim();
-      break;
-    }
-  }
-  const el = $('quote');
-  if (quote) {
-    el.className = 'utterance';
-    el.textContent = quote;
-  }
-}
-
-// Show the first shared loss, the latest one, and how far it fell. Then redraw the chart.
 function renderHistory(history) {
   roomHistory = history || [];
   if (!roomHistory.length) {
     $('room-loss').textContent = '—';
-    $('loss-delta').textContent = 'mean of the last round';
+    $('loss-delta').textContent = 'starts near 6.9';
+    $('versions').innerHTML = '<tr><td colspan="3">No version has closed yet.</td></tr>';
   } else {
-    const last = roomHistory[roomHistory.length - 1];
+    const last = roomHistory.at(-1);
     const first = roomHistory[0];
     $('room-loss').textContent = last.avgLoss.toFixed(2);
     const drop = first.avgLoss - last.avgLoss;
-    $('loss-delta').textContent = roomHistory.length === 1
-      ? 'first shared round'
-      : `${first.avgLoss.toFixed(2)} → ${last.avgLoss.toFixed(2)}  (${drop >= 0 ? '−' : '+'}${Math.abs(drop).toFixed(2)})`;
+    $('loss-delta').textContent = `${first.avgLoss.toFixed(2)} → ${last.avgLoss.toFixed(2)} (${drop >= 0 ? 'down' : 'up'} ${Math.abs(drop).toFixed(2)})`;
+    const start = Math.max(0, roomHistory.length - 8);
+    const rows = roomHistory.slice(start);
+    $('versions').innerHTML = rows.map((row, index) => {
+      const prev = roomHistory[start + index - 1];
+      const change = prev ? (row.avgLoss - prev.avgLoss).toFixed(2) : '—';
+      return `<tr><td>${row.version}</td><td>${row.avgLoss.toFixed(2)}</td><td>${change}</td></tr>`;
+    }).join('');
   }
   draw();
 }
 
-// Copy one server message into the numbers at the top of the page.
-function applyMeta(msg) {
-  version = msg.version ?? version;
+function renderSave(save, version) {
+  $('orca-blurb').textContent = version == null ? 'one saved copy' : `version ${version}`;
+  if (!save || !save.phones?.length) {
+    $('save-line').textContent = 'The first phone to finish this round is the one whose change Orca adds. Everyone else then trains on that new copy.';
+    return;
+  }
+  const who = save.phones.map((phone) => `${phone.name} (loss ${Number(phone.loss).toFixed(2)}, ${phone.tokens} pieces)`).join(', ');
+  $('save-line').textContent = `Version ${save.version} was moved by ${who}. Mean loss ${Number(save.avgLoss).toFixed(2)}. Orca saved that and opened version ${save.version + 1}.`;
+}
+
+function apply(msg) {
   deadlineMs = msg.deadlineMs || deadlineMs;
-  submissions = msg.submissions || 0;
-  quorum = msg.quorum || 1;
-  $('version').textContent = String(version);
-  $('presence').textContent = msg.dormant ? 'sleeping, weights kept' : 'awake, taking offerings';
-  if (msg.weightsB64) {
-    const count = weightCount(msg.weightsB64);
-    if (count) $('weights').textContent = `${Math.round(count).toLocaleString()} weights saved`;
-  } else if (version > 0) {
-    $('weights').textContent = 'saved on disk';
-  }
-  $('offer').textContent = `${submissions} / ${quorum} offering${quorum === 1 ? '' : 's'} this round`;
-  renderPeople(msg.clients || []);
-  renderTalk(msg.messages || []);
+  $('version').textContent = String(msg.version ?? '—');
+  $('offer').textContent = `${msg.submissions || 0} send${msg.submissions === 1 ? '' : 's'} this round · first one is saved`;
+  renderPhones(msg.phones || msg.clients || []);
   if (msg.lossHistory) renderHistory(msg.lossHistory);
+  renderSave(msg.lastSave, msg.version);
+  if (msg.weightsB64) $('weights').textContent = '36,096 weights saved in Orca';
 }
 
-// Count down to the end of the 12 second round.
-function tickClock() {
-  if (!deadlineMs) return;
-  const seconds = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
-  $('countdown').textContent = seconds + 's';
-}
-setInterval(tickClock, 250);
-window.addEventListener('resize', draw);
-
-// Use fast CPU (wasm) when the phone has it. Otherwise the slow plain-JS engine.
-async function ensureBackend() {
-  const devices = await init();
-  if (devices.includes('wasm')) {
-    defaultDevice('wasm');
-    return 'wasm';
-  }
-  defaultDevice('cpu');
-  return 'cpu';
-}
-
-// Train forever on Shakespeare until the round asks this phone to send its change.
-async function runLoop(initialWeights, device) {
-  const tok = await fetch('/engine/data/shakespeare.tok.json').then((res) => {
-    if (!res.ok) throw new Error(`tokenizer ${res.status}`);
-    return res.json();
-  });
-  const tokenizer = buildBPETokenizer(tok.merges);
-  const trainData = new Uint16Array(await fetch('/engine/data/shakespeare.train.bin').then((res) => res.arrayBuffer()));
-  const valData = new Uint16Array(await fetch('/engine/data/shakespeare.val.bin').then((res) => res.arrayBuffer()));
-  defaultDevice(device);
-  trainingHandle = {};
-  roundSteps = 0;
-  roundLossSum = 0;
-  roundTokens = 0;
-  roundStart = initialWeights.length ? initialWeights : null;
-  const gen = train(device, trainData, valData, tokenizer, {
-    model: 'nano',
-    handle: trainingHandle,
-    initialWeights: initialWeights.length ? initialWeights : undefined,
-    steps: 999999,
-    seed: 1,
-    valEvery: 99999,
-  });
-  $('status').textContent = device === 'wasm' ? 'This phone is training.' : 'This phone is training on the slow engine.';
-  $('model-note').textContent = `nano · Shakespeare · 1,024 word-pieces · ${device === 'wasm' ? 'fast CPU' : 'slow CPU'}`;
-  for await (const event of gen) {
-    if (abortFlag) break;
-    if (event.type === 'init') {
-      $('weights').textContent = `${event.paramCount.toLocaleString()} weights in the room`;
-    }
-    if (event.type === 'step') {
-      roundSteps += 1;
-      roundLossSum += event.loss;
-      roundTokens += event.batchSize ?? 8;
-      $('loss').textContent = event.loss.toFixed(2);
-      $('step').textContent = `step ${event.step} · ${device === 'wasm' ? 'fast CPU' : 'slow CPU'}`;
-      if (ws && ws.readyState === WebSocket.OPEN && event.step % 4 === 0) {
-        ws.send(JSON.stringify({ type: 'loss', loss: event.loss, tokens: event.batchSize ?? 8 }));
-      }
-      if (workerWs && workerWs.readyState === WebSocket.OPEN && event.step % 4 === 0) {
-        workerWs.send(JSON.stringify({ type: 'progress', loss: event.loss, step: event.step }));
-      }
-      if (submitPending) {
-        $('status').textContent = 'Sending this phone’s change to the room.';
-        submitPending = false;
-        sendOffering();
-        abortFlag = true;
-        break;
-      }
-      if (event.step % 2 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-  }
-}
-
-// Send how the weights moved this round. First round sends the whole vector.
-function sendOffering() {
-  if (!ws || ws.readyState !== WebSocket.OPEN || roundSteps === 0 || !trainingHandle.getFlat) return;
-  const flat = trainingHandle.getFlat();
-  let delta;
-  if (roundStart && roundStart.length === flat.length) {
-    delta = new Float32Array(flat.length);
-    for (let i = 0; i < flat.length; i++) delta[i] = flat[i] - roundStart[i];
-  } else {
-    delta = flat;
-  }
-  ws.send(JSON.stringify({
-    type: 'publish',
-    deltaB64: encodeF32(delta),
-    tokens: Math.max(1, roundTokens),
-    loss: roundLossSum / roundSteps,
-    baseVersion: version,
-  }));
-  if (workerWs && workerWs.readyState === WebSocket.OPEN) {
-    workerWs.send(JSON.stringify({
-      type: 'checkpoint',
-      weightsB64: encodeF32(flat),
-      loss: roundLossSum / roundSteps,
-      step: roundSteps,
-    }));
-  }
-}
-
-// Stop any training already running, then start from the weights the actor just sent.
-async function startTraining(weightsB64) {
-  const mine = ++turn;
-  if (running) abortFlag = true;
-  while (running) await new Promise((resolve) => setTimeout(resolve, 40));
-  if (mine !== turn) return;
-  running = true;
-  abortFlag = false;
-  const weights = decodeF32(weightsB64);
-  try {
-    let device = 'wasm';
-    try {
-      device = await ensureBackend();
-      if (mine !== turn) return;
-      await runLoop(weights, device);
-    } catch (error) {
-      if (mine !== turn) return;
-      if (device !== 'cpu') {
-        $('status').textContent = 'The fast engine failed. Retrying slowly.';
-        abortFlag = false;
-        await runLoop(weights, 'cpu');
-      } else {
-        throw error;
-      }
-    }
-    if (!abortFlag && mine === turn) $('status').textContent = 'Waiting for the next round.';
-  } catch (error) {
-    if (mine !== turn) return;
-    $('status').textContent = 'This phone stopped.';
-    $('error').textContent = error instanceof Error ? error.message : String(error);
-    console.error(error);
-  } finally {
-    running = false;
-  }
-}
-
-// Paint this phone's Worker: its id, last step, and how many rounds it saved.
-function renderWorker(msg) {
-  const loss = msg.lastLoss == null ? '—' : Number(msg.lastLoss).toFixed(2);
-  $('spirit-save').textContent = `Worker ${String(msg.workerId).slice(0, 8)} · step ${msg.lastStep} · loss ${loss} · ${msg.roundsSent} round${msg.roundsSent === 1 ? '' : 's'} saved on this phone`;
-}
-
-function openWorker(workerTicket) {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  workerWs = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${workerTicket}`);
-  workerWs.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.type === 'worker') renderWorker(msg);
-  };
-}
-
-// Ask for two tickets: one for the shared room, one for this phone's actor.
 async function connect() {
-  $('status').textContent = 'Joining the circle.';
+  $('status').textContent = 'Connecting to Orca.';
   let ticket;
-  let workerTicket;
   try {
     const response = await fetch('/grant', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: myName, workerId }),
+      body: JSON.stringify({ name: 'main screen', role: 'screen', workerId: 'orca-screen' }),
     });
     if (!response.ok) throw new Error(`grant ${response.status}`);
-    const grant = await response.json();
-    ticket = grant.ticket;
-    workerTicket = grant.workerTicket;
-    if (grant.workerId) {
-      workerId = grant.workerId;
-      localStorage.setItem('seance-worker-id', workerId);
-    }
+    ticket = (await response.json()).ticket;
   } catch (error) {
-    $('status').textContent = 'Could not reach the actor.';
+    $('status').textContent = 'Could not reach Orca.';
     $('error').textContent = error instanceof Error ? error.message : String(error);
     setTimeout(connect, 1500);
     return;
   }
-  openWorker(workerTicket);
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
-  ws.onopen = () => {
-    $('status').textContent = 'Connected to the actor.';
-  };
+  ws.onopen = () => { $('status').textContent = 'Orca is live. Phones that open the link show up here.'; };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'state' || msg.type === 'state_update') return;
-    if (msg.type === 'reject') {
-      $('error').textContent = msg.reason || 'The room refused the offering.';
-      if (msg.weightsB64) startTraining(msg.weightsB64);
-      applyMeta(msg);
-      return;
-    }
-    if (msg.clientId) clientId = msg.clientId;
-    applyMeta(msg);
-    if (msg.type === 'hello' || msg.type === 'round') startTraining(msg.weightsB64 || '');
-    if (msg.type === 'submit') submitPending = true;
+    apply(msg);
   };
   ws.onclose = () => {
-    $('status').textContent = 'The connection dropped. Rejoining.';
-    abortFlag = true;
+    $('status').textContent = 'Reconnecting to Orca.';
     setTimeout(connect, 1500);
   };
 }
-
-$('leave').onclick = () => {
-  abortFlag = true;
-  if (workerWs) workerWs.close();
-  if (ws) ws.close();
-  $('status').textContent = 'You left the circle.';
-};
 
 connect();
 draw();

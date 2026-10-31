@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your phone · Séance</title>
+<style>
+  :root {
+    --bg: #0e0c0a;
+    --bg-2: #171310;
+    --ink: #f6efe4;
+    --dim: #b7a898;
+    --faint: #7d7268;
+    --line: #3c332c;
+    --ember: #e39a56;
+    --ember-2: #f1d3a8;
+    --good: #c6d3a1;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: Georgia, "Iowan Old Style", Palatino, serif; }
+  button, .num, .kicker, .meta, .step b { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 1rem 0.9rem 2rem; }
+  .kicker { color: var(--ember); letter-spacing: 0.16em; font-size: 0.68rem; text-transform: uppercase; }
+  h1 { font-weight: 500; font-size: 2.4rem; line-height: 0.95; margin: 0.2rem 0 0.35rem; }
+  p { margin: 0; color: var(--dim); line-height: 1.4; }
+  .you { color: var(--ember-2); }
+  .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin: 0.8rem 0; }
+  .step { border: 1px solid var(--line); padding: 0.5rem 0.55rem; background: var(--bg-2); min-height: 4.6rem; }
+  .step.on { border-color: var(--ember); }
+  .step b { display: block; color: var(--ember); font-size: 0.68rem; letter-spacing: 0.08em; margin-bottom: 0.2rem; }
+  .step span { color: var(--ink); font-family: Georgia, serif; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+  .stat { background: var(--bg-2); border: 1px solid var(--line); padding: 0.65rem 0.7rem; }
+  .stat .label { color: var(--faint); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .stat .num { font-size: 1.7rem; color: var(--ember-2); margin-top: 0.1rem; font-variant-numeric: tabular-nums; }
+  .stat .sub { color: var(--dim); font-size: 0.75rem; }
+  section { background: var(--bg-2); border: 1px solid var(--line); padding: 0.75rem; margin-top: 0.55rem; }
+  h2 { margin: 0 0 0.35rem; font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ember); font-weight: 500; }
+  canvas { width: 100%; height: 150px; display: block; background: #0c0a09; }
+  .flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.35rem; align-items: center; margin-top: 0.4rem; }
+  .box { border: 1px solid var(--line); padding: 0.55rem; text-align: center; }
+  .box.me { border-color: var(--ember); }
+  .box strong { display: block; color: var(--ember-2); }
+  .arrow { color: var(--faint); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.72rem; text-align: center; }
+  #status { color: var(--good); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.82rem; margin-top: 0.55rem; }
+  #error { color: #e7b2a8; min-height: 1.1em; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.78rem; }
+  button { margin-top: 0.8rem; background: transparent; color: var(--dim); border: 1px solid var(--line); padding: 0.5rem 0.7rem; }
+  .others { margin-top: 0.35rem; color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">Your phone · training only</div>
+  <h1>You are <span class="you" id="name">…</span></h1>
+  <p id="story">This phone reads a few lines of Shakespeare, guesses the next piece, and sends Orca only how the weights moved.</p>
+
+  <div class="steps" id="steps">
+    <div class="step" data-step="read"><b>1 · Read</b><span>A few lines, on this phone.</span></div>
+    <div class="step" data-step="guess"><b>2 · Guess</b><span>What piece comes next.</span></div>
+    <div class="step on" data-step="loss"><b>3 · Score</b><span>Loss is how wrong the guess was.</span></div>
+    <div class="step" data-step="send"><b>4 · Send</b><span>Only the change goes to Orca.</span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Your loss</div><div class="num" id="loss">—</div><div class="sub" id="step">waiting for the first guess</div></div>
+    <div class="stat"><div class="label">Training from</div><div class="num" id="version">—</div><div class="sub" id="pieces">0 pieces this round</div></div>
+  </div>
+
+  <section>
+    <h2>Your guesses this round</h2>
+    <canvas id="chart" width="520" height="150"></canvas>
+  </section>
+
+  <section>
+    <h2>What you give Orca</h2>
+    <div class="flow">
+      <div class="box me"><strong id="me-label">This phone</strong><span id="me-detail">training</span></div>
+      <div class="arrow">change<br>only</div>
+      <div class="box"><strong>Orca</strong><span id="orca-detail">shared copy</span></div>
+    </div>
+    <p id="contrib" style="margin-top:0.55rem">You have not sent a change this round yet. Keep this page open.</p>
+    <p id="last" style="margin-top:0.35rem"></p>
+    <p class="others" id="others"></p>
+  </section>
+
+  <p id="status">Joining Orca.</p>
+  <p id="error"></p>
+  <button id="leave" type="button">Leave</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "@jax-js/jax": "/vendor/jax/dist/index.js?v=2",
+    "@jax-js/optax": "/vendor/optax/dist/index.js",
+    "/codec.js": "/codec.js",
+    "/engine/train.js": "/engine/train.js"
+  }
+}
+</script>
+<script type="module">
+import { init, defaultDevice } from '@jax-js/jax';
+import { train, buildBPETokenizer } from '/engine/train.js';
+import { encodeF32, decodeF32 } from '/codec.js';
+
+const $ = (id) => document.getElementById(id);
+function spiritName() {
+  const a = ['pale', 'ash', 'quiet', 'late', 'dim', 'old', 'soft', 'thin'];
+  const b = ['candle', 'moth', 'crow', 'bell', 'glass', 'psalm', 'wick', 'dust'];
+  return `${a[Math.floor(Math.random() * a.length)]}-${b[Math.floor(Math.random() * b.length)]}`;
+}
+const myName = spiritName();
+$('name').textContent = myName;
+$('me-label').textContent = myName;
+let workerId = localStorage.getItem('seance-worker-id');
+if (!workerId || !/^[A-Za-z0-9._-]{1,64}$/.test(workerId)) {
+  workerId = crypto.randomUUID();
+  localStorage.setItem('seance-worker-id', workerId);
+}
+
+let ws = null;
+let workerWs = null;
+let clientId = null;
+let version = 0;
+let running = false;
+let abortFlag = false;
+let submitPending = false;
+let trainingHandle = {};
+let roundStart = null;
+let roundSteps = 0;
+let roundLossSum = 0;
+let roundTokens = 0;
+let turn = 0;
+let iSent = false;
+let myLosses = [];
+let phase = 'loss';
+
+function setPhase(next) {
+  phase = next;
+  document.querySelectorAll('.step').forEach((el) => {
+    el.classList.toggle('on', el.dataset.step === next);
+  });
+}
+
+function draw() {
+  const canvas = $('chart');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(260, rect.width) * dpr;
+  canvas.height = 150 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = canvas.width / dpr;
+  const h = 150;
+  ctx.fillStyle = '#0c0a09';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#7d7268';
+  ctx.font = '11px ui-monospace, monospace';
+  if (myLosses.length < 2) {
+    ctx.fillText('Your loss line appears after a few guesses.', 12, h / 2);
+    return;
+  }
+  const pad = { l: 36, r: 8, t: 12, b: 16 };
+  let min = Math.min(...myLosses);
+  let max = Math.max(...myLosses);
+  if (max === min) { min -= 0.4; max += 0.4; }
+  const xAt = (i) => pad.l + (i / (myLosses.length - 1)) * (w - pad.l - pad.r);
+  const yAt = (value) => pad.t + (1 - (value - min) / (max - min)) * (h - pad.t - pad.b);
+  ctx.strokeStyle = '#2a2420';
+  ctx.beginPath();
+  ctx.moveTo(pad.l, pad.t);
+  ctx.lineTo(pad.l, h - pad.b);
+  ctx.stroke();
+  ctx.textAlign = 'right';
+  ctx.fillText(max.toFixed(1), pad.l - 4, pad.t + 4);
+  ctx.fillText(min.toFixed(1), pad.l - 4, h - pad.b);
+  ctx.beginPath();
+  ctx.strokeStyle = '#e39a56';
+  ctx.lineWidth = 2;
+  myLosses.forEach((value, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(value)) : ctx.lineTo(xAt(i), yAt(value))));
+  ctx.stroke();
+}
+window.addEventListener('resize', draw);
+
+function paintMine() {
+  $('version').textContent = String(version);
+  $('pieces').textContent = `${roundTokens} pieces this round`;
+  $('me-detail').textContent = roundSteps ? `loss ${($('loss').textContent)}` : 'training';
+  $('orca-detail').textContent = `version ${version}`;
+}
+
+function applyMeta(msg) {
+  version = msg.version ?? version;
+  paintMine();
+  const others = (msg.clients || []).filter((client) => client.id !== clientId);
+  $('others').textContent = others.length
+    ? `Also connected: ${others.map((client) => client.name).join(', ')}. The first phone to send this round is the one Orca saves.`
+    : 'You are the only phone in the room. Your send is the one Orca will save.';
+}
+
+async function ensureBackend() {
+  const devices = await init();
+  if (devices.includes('wasm')) {
+    defaultDevice('wasm');
+    return 'wasm';
+  }
+  defaultDevice('cpu');
+  return 'cpu';
+}
+
+async function runLoop(initialWeights, device) {
+  const tok = await fetch('/engine/data/shakespeare.tok.json').then((res) => {
+    if (!res.ok) throw new Error(`tokenizer ${res.status}`);
+    return res.json();
+  });
+  const tokenizer = buildBPETokenizer(tok.merges);
+  const trainData = new Uint16Array(await fetch('/engine/data/shakespeare.train.bin').then((res) => res.arrayBuffer()));
+  const valData = new Uint16Array(await fetch('/engine/data/shakespeare.val.bin').then((res) => res.arrayBuffer()));
+  defaultDevice(device);
+  trainingHandle = {};
+  roundSteps = 0;
+  roundLossSum = 0;
+  roundTokens = 0;
+  myLosses = [];
+  roundStart = initialWeights.length ? initialWeights : null;
+  const gen = train(device, trainData, valData, tokenizer, {
+    model: 'nano',
+    handle: trainingHandle,
+    initialWeights: initialWeights.length ? initialWeights : undefined,
+    steps: 999999,
+    seed: 1,
+    valEvery: 99999,
+  });
+  setPhase('loss');
+  $('status').textContent = device === 'wasm' ? 'This phone is guessing the next piece.' : 'This phone is training on the slow engine.';
+  $('contrib').textContent = `You are training on version ${version}. Nothing has been sent yet.`;
+  for await (const event of gen) {
+    if (abortFlag) break;
+    if (event.type === 'step') {
+      roundSteps += 1;
+      roundLossSum += event.loss;
+      roundTokens += event.batchSize ?? 8;
+      myLosses.push(event.loss);
+      if (myLosses.length > 40) myLosses.shift();
+      $('loss').textContent = event.loss.toFixed(2);
+      $('step').textContent = `guess ${event.step} on this phone`;
+      paintMine();
+      if (roundSteps % 3 === 0) draw();
+      if (ws && ws.readyState === WebSocket.OPEN && event.step % 4 === 0) {
+        ws.send(JSON.stringify({ type: 'loss', loss: event.loss, tokens: roundTokens }));
+      }
+      if (workerWs && workerWs.readyState === WebSocket.OPEN && event.step % 4 === 0) {
+        workerWs.send(JSON.stringify({ type: 'progress', loss: event.loss, step: event.step }));
+      }
+      if (submitPending) {
+        setPhase('send');
+        $('status').textContent = 'Sending your change to Orca.';
+        submitPending = false;
+        sendOffering();
+        abortFlag = true;
+        break;
+      }
+      if (event.step % 2 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+  }
+}
+
+function sendOffering() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || roundSteps === 0 || !trainingHandle.getFlat) return;
+  const flat = trainingHandle.getFlat();
+  let delta;
+  if (roundStart && roundStart.length === flat.length) {
+    delta = new Float32Array(flat.length);
+    for (let i = 0; i < flat.length; i++) delta[i] = flat[i] - roundStart[i];
+  } else {
+    delta = flat;
+  }
+  const loss = roundLossSum / roundSteps;
+  iSent = true;
+  ws.send(JSON.stringify({
+    type: 'publish',
+    deltaB64: encodeF32(delta),
+    tokens: Math.max(1, roundTokens),
+    loss,
+    baseVersion: version,
+  }));
+  $('contrib').textContent = `You sent a change from version ${version}. Your guesses scored ${loss.toFixed(2)} across ${roundTokens} pieces.`;
+  if (workerWs && workerWs.readyState === WebSocket.OPEN) {
+    workerWs.send(JSON.stringify({
+      type: 'checkpoint',
+      weightsB64: encodeF32(flat),
+      loss,
+      step: roundSteps,
+    }));
+  }
+}
+
+async function startTraining(weightsB64) {
+  const mine = ++turn;
+  if (running) abortFlag = true;
+  while (running) await new Promise((resolve) => setTimeout(resolve, 40));
+  if (mine !== turn) return;
+  running = true;
+  abortFlag = false;
+  iSent = false;
+  const weights = decodeF32(weightsB64);
+  try {
+    let device = 'wasm';
+    try {
+      device = await ensureBackend();
+      if (mine !== turn) return;
+      await runLoop(weights, device);
+    } catch (error) {
+      if (mine !== turn) return;
+      if (device !== 'cpu') {
+        $('status').textContent = 'The fast engine failed. Retrying slowly.';
+        abortFlag = false;
+        await runLoop(weights, 'cpu');
+      } else {
+        throw error;
+      }
+    }
+    if (!abortFlag && mine === turn) $('status').textContent = 'Waiting for the next round.';
+  } catch (error) {
+    if (mine !== turn) return;
+    $('status').textContent = 'This phone stopped.';
+    $('error').textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    running = false;
+  }
+}
+
+function openWorker(workerTicket) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  workerWs = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${workerTicket}`);
+}
+
+async function connect() {
+  $('status').textContent = 'Joining Orca.';
+  let ticket;
+  let workerTicket;
+  try {
+    const response = await fetch('/grant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: myName, role: 'phone', workerId }),
+    });
+    if (!response.ok) throw new Error(`grant ${response.status}`);
+    const grant = await response.json();
+    ticket = grant.ticket;
+    workerTicket = grant.workerTicket;
+    if (grant.workerId) {
+      workerId = grant.workerId;
+      localStorage.setItem('seance-worker-id', workerId);
+    }
+  } catch (error) {
+    $('status').textContent = 'Could not reach Orca.';
+    $('error').textContent = error instanceof Error ? error.message : String(error);
+    setTimeout(connect, 1500);
+    return;
+  }
+  openWorker(workerTicket);
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
+  ws.onopen = () => { $('status').textContent = 'Connected. Waiting for the shared weights.'; };
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'state' || msg.type === 'state_update') return;
+    if (msg.clientId) clientId = msg.clientId;
+    if (msg.type === 'reject') {
+      $('error').textContent = '';
+      $('last').textContent = `Orca had already moved on. ${msg.reason || 'Your change was not added.'} You are starting from the new copy.`;
+      setPhase('read');
+      if (msg.weightsB64) startTraining(msg.weightsB64);
+      applyMeta(msg);
+      return;
+    }
+    if (msg.type === 'round' && iSent) {
+      $('last').textContent = `Orca saved your change. The shared model is now version ${msg.version}. Your loss on that round was ${$('loss').textContent}.`;
+      iSent = false;
+    }
+    applyMeta(msg);
+    if (msg.type === 'hello' || msg.type === 'round') startTraining(msg.weightsB64 || '');
+    if (msg.type === 'submit') submitPending = true;
+  };
+  ws.onclose = () => {
+    $('status').textContent = 'The connection dropped. Rejoining.';
+    abortFlag = true;
+    setTimeout(connect, 1500);
+  };
+}
+
+$('leave').onclick = () => {
+  abortFlag = true;
+  if (workerWs) workerWs.close();
+  if (ws) ws.close();
+  $('status').textContent = 'You left. Orca still has the last saved weights.';
+};
+
+connect();
+draw();
+</script>
+</body>
+</html>

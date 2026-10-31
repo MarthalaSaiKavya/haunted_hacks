@@ -205,23 +205,30 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/grant') {
-    let name = 'worker';
+    let name = 'phone';
     let workerId = '';
+    let body = {};
     try {
-      const body = await req.json();
-      name = String(body.name ?? 'worker').trim().slice(0, 32) || 'worker';
+      body = await req.json();
+      name = String(body.name ?? 'phone').trim().slice(0, 32) || 'phone';
       workerId = String(body.workerId ?? '');
     } catch {
       // keep the defaults
     }
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(workerId)) workerId = crypto.randomUUID();
+    const role = body.role === 'screen' ? 'screen' : 'phone';
     const orcaGrant = await actors.Orca.prepareWebsocket({
       actorId: ACTOR_ID,
-      metadata: { name },
+      metadata: { name, role },
     });
+    if (role === 'screen') {
+      const ticket = crypto.randomUUID();
+      tickets.set(ticket, orcaGrant.websocketUrl);
+      return Response.json({ ticket, role }, { headers: { 'cache-control': 'no-store' } });
+    }
     const workerGrant = await actors.Worker.prepareWebsocket({
       actorId: workerId,
-      metadata: { name },
+      metadata: { name, role },
     });
     const ticket = crypto.randomUUID();
     const workerTicket = crypto.randomUUID();
@@ -246,6 +253,9 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
 
   if (url.pathname === '/' || url.pathname === '/index.html') {
     return serveFile(new URL('./public/index.html', ROOT));
+  }
+  if (url.pathname === '/join' || url.pathname === '/join.html') {
+    return serveFile(new URL('./public/join.html', ROOT));
   }
   if (url.pathname === '/codec.js') return serveFile(new URL('./codec.js', ROOT));
   if (url.pathname.startsWith('/engine/data/')) {

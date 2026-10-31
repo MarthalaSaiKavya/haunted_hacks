@@ -16,8 +16,11 @@ const QUORUM = 1
 type LossPoint = { version: number; avgLoss: number }
 type Note = { at: number; from: string; text: string; versionMark?: number }
 type Seat = { id: string; name: string }
-type Offering = { delta: Float32Array; tokens: number; loss: number }
-type Metadata = { name: string }
+type Offering = { delta: Float32Array; tokens: number; loss: number; name: string }
+type Metadata = { name: string; role?: "phone" | "screen" }
+type PhoneLive = { id: string; name: string; loss: number | null; tokens: number; offered: boolean }
+type SavePhone = { name: string; tokens: number; loss: number }
+type LastSave = { version: number; avgLoss: number; phones: SavePhone[] }
 type Incoming =
     | { type: "loss"; loss: number; tokens: number }
     | { type: "publish"; deltaB64: string; tokens: number; loss: number; baseVersion: number }
@@ -31,6 +34,8 @@ type RoomView = {
     avgLoss: number | null
     messages: Note[]
     clients: Seat[]
+    phones: PhoneLive[]
+    lastSave: LastSave | null
     deadlineMs: number
     submissions: number
     quorum: number
@@ -82,7 +87,9 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
     @Persisted spokenVersion = -1
     @Persisted deadlineMs = 0
     @Persisted submitSent = false
+    @Persisted lastSave: LastSave | null = null
     @Ephemeral offerings: Offering[] = []
+    @Ephemeral board: PhoneLive[] = []
 
     // Read-only copy for the Watcher and the Voice. Does not change the room.
     async snapshot(): Promise<SavedRoom> {
@@ -185,7 +192,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         if (!(tokens > 0) || typeof loss !== "number") return
         const already = this.messages.some((note) => note.from === "The Watcher" && note.versionMark === this.version)
         if (!already) {
-            const name = socket.metadata.name || "a worker"
+            const name = socket.metadata.name || "a phone"
             this.messages = [...this.messages, {
                 at: Date.now(),
                 from: "The Watcher",
@@ -193,6 +200,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
                 text: `${name} is in the circle. Loss ${loss.toFixed(3)} on this step.`,
             }].slice(-40)
         }
+        await this.remember(socket, { loss, tokens })
         this.broadcast(await this.full("pulse"))
     }
 
@@ -213,7 +221,9 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
             socket.send(await this.full("reject", false, { reason: `offering length ${delta.length} does not match the room` }))
             return
         }
-        this.offerings = [...this.offerings, { delta, tokens: message.tokens, loss: message.loss }]
+        const name = socket.metadata.name || "a phone"
+        this.offerings = [...this.offerings, { delta, tokens: message.tokens, loss: message.loss, name }]
+        await this.remember(socket, { offered: true, tokens: message.tokens, loss: message.loss })
         if (this.offerings.length >= QUORUM) {
             await this.closeRound()
             this.broadcast(await this.full("round", true))
@@ -228,6 +238,16 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         const next = applyAverage(have, this.offerings)
         const avgLoss = this.offerings.reduce((sum, offering) => sum + offering.loss, 0) / this.offerings.length
         const closed = this.version
+        this.lastSave = {
+            version: closed,
+            avgLoss,
+            phones: this.offerings.map((offering) => ({
+                name: offering.name,
+                tokens: offering.tokens,
+                loss: offering.loss,
+            })),
+        }
+        this.board = this.board.map((row) => ({ ...row, offered: false, tokens: 0 }))
         this.lossHistory = [...this.lossHistory, { version: closed, avgLoss }]
         this.messages = [...this.messages, {
             at: Date.now(),
@@ -244,6 +264,15 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
     private async full(type: RoomView["type"], includeWeights = false, extra?: Partial<RoomView>): Promise<RoomView> {
         const last = this.lossHistory.at(-1)
         const sockets = await this.getConnections()
+        const seats = sockets
+            .filter((socket) => socket.metadata.role !== "screen")
+            .map((socket) => ({ id: socket.id, name: socket.metadata.name || "phone" }))
+        this.board = seats.map((seat) => {
+            const prev = this.board.find((row) => row.id === seat.id)
+            return prev
+                ? { ...prev, name: seat.name }
+                : { id: seat.id, name: seat.name, loss: null, tokens: 0, offered: false }
+        })
         return {
             type,
             roomId: this.id,
@@ -252,12 +281,20 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
             lossHistory: this.lossHistory,
             avgLoss: last ? last.avgLoss : null,
             messages: this.messages,
-            clients: sockets.map((socket) => ({ id: socket.id, name: socket.metadata.name || "worker" })),
+            clients: seats,
+            phones: this.board,
+            lastSave: this.lastSave,
             deadlineMs: this.deadlineMs,
             submissions: this.offerings.length,
             quorum: QUORUM,
             ...extra,
         }
+    }
+
+    // Keep one live row per phone that is still connected.
+    private async remember(socket: Socket, patch: Partial<PhoneLive>): Promise<void> {
+        const view = await this.full("pulse")
+        this.board = view.phones.map((row) => row.id === socket.id ? { ...row, ...patch, name: socket.metadata.name || row.name } : row)
     }
 }
 
