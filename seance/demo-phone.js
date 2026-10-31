@@ -155,11 +155,70 @@ async function publish() {
   }
 }
 
+function readTokens(url) {
+  const bytes = Deno.readFileSync(url);
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return new Uint16Array(copy);
+}
+
 async function lesson() {
   const tok = JSON.parse(await Deno.readTextFile(new URL('../data/shakespeare.tok.json', import.meta.url)));
-  const trainData = new Uint16Array(await Deno.readFile(new URL('../data/shakespeare.train.bin', import.meta.url)));
-  const valData = new Uint16Array(await Deno.readFile(new URL('../data/shakespeare.val.bin', import.meta.url)));
-  return { tokenizer: buildBPETokenizer(tok.merges), trainData, valData };
+  const trainUrl = new URL('../data/shakespeare.train.bin', import.meta.url);
+  const valUrl = new URL('../data/shakespeare.val.bin', import.meta.url);
+  return {
+    tokenizer: buildBPETokenizer(tok.merges),
+    trainData: readTokens(trainUrl),
+    valData: readTokens(valUrl),
+  };
+}
+
+async function publishFlat(flat, baseFlat, pieceCount, loss) {
+  const delta = new Float32Array(flat.length);
+  for (let i = 0; i < flat.length; i++) delta[i] = flat[i] - (baseFlat[i] || 0);
+  const response = await fetch(`${ORIGIN}/publish`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: NAME,
+      deltaB64: encodeF32(delta),
+      tokens: Math.max(1, pieceCount),
+      loss,
+      baseVersion: version,
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const result = await response.json();
+  if (!result.accepted) throw new Error(result.reason || 'heal was not saved');
+  version = result.version;
+  trace('send-ok', `version ${result.version} pieces ${pieceCount} loss ${loss.toFixed(2)}`);
+}
+
+// The shared weights were trained on tokens read one byte at a time,
+// so the Voice spelled control characters. Train once on the real tokens
+// and replace that copy.
+async function heal(data, device, serverFlat) {
+  const handle = {};
+  const gen = train(device, data.trainData, data.valData, data.tokenizer, {
+    model: 'nano',
+    handle,
+    steps: 400,
+    seed: 1,
+    valEvery: 99999,
+  });
+  let loss = 6;
+  for await (const event of gen) {
+    if (event.type === 'step') loss = event.loss;
+    if (event.type === 'step' && (event.step === 1 || event.step % 100 === 0)) {
+      trace('heal', `step ${event.step} loss ${event.loss.toFixed(2)}`);
+    }
+  }
+  const fresh = new Float32Array(handle.getFlat());
+  await publishFlat(fresh, serverFlat, 400 * 8, loss);
+  const mark = new URL('./state/demo-healed', import.meta.url);
+  await Deno.mkdir(new URL('./state/', import.meta.url), { recursive: true }).catch(() => {});
+  await Deno.writeTextFile(mark, 'ok');
+  return fresh;
 }
 
 async function run() {
@@ -170,6 +229,11 @@ async function run() {
   const data = await lesson();
   await join();
   let weights = await loadWeights();
+  try {
+    await Deno.stat(new URL('./state/demo-healed', import.meta.url));
+  } catch {
+    weights = await heal(data, device, weights);
+  }
   while (true) {
     reload = false;
     roundStart = weights.length ? weights : null;

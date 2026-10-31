@@ -142,6 +142,18 @@ export async function inference(params, cfg, tokenizer, rngKey, opts = {}) {
 
   // Encode prompt (if any) — remove trailing EOS so generation continues
   const promptIds = prompt ? tokenizer.encode(prompt).slice(0, -1) : [tokenizer.BOS];
+  // Byte tokens include control characters. The board should only show text,
+  // so those tokens are not allowed to win a sample. End-of-line still can.
+  const ban = new Float32Array(tokenizer.vocabSize);
+  for (let i = 0; i < tokenizer.vocabSize; i++) {
+    if (i === tokenizer.EOS) continue;
+    const text = tokenizer.decode([i]);
+    const letters = text.length > 0 && [...text].every((ch) => /[a-zA-Z ,.'?;:!\-]/.test(ch));
+    const wordPiece = i >= 256 && letters;
+    const small = i === 32 || i === 39 || i === 44 || i === 46 || (i >= 97 && i <= 122);
+    if (!(wordPiece || small)) ban[i] = -1e9;
+  }
+  const banLogits = np.array(ban);
 
   const sampleKeys = random.split(rngKey, numSamples);
 
@@ -165,13 +177,14 @@ export async function inference(params, cfg, tokenizer, rngKey, opts = {}) {
 
       // Temperature scaling
       const scaled = temperature !== 1.0 ? lastLogits.div(temperature) : lastLogits;
+      const masked = scaled.add(banLogits.ref);
 
       // Sample from categorical distribution
       const splitKeys = random.split(sampleKey, 2);
       const k1 = splitKeys.ref.slice(0);
       sampleKey = splitKeys.slice(1);
 
-      const chosen = random.categorical(k1, scaled);
+      const chosen = random.categorical(k1, masked);
       const chosenId = chosen.item();
 
       if (chosenId === tokenizer.BOS || chosenId === tokenizer.EOS) break;

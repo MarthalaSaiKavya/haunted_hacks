@@ -28,7 +28,8 @@ export default flow<Round>("seance-round", async (f, input) => {
     `${sh(input.denoBin)} run --allow-read --allow-env --allow-net ${sh(input.speakScript)} ${sh(input.weightsPath)} ${String(input.version)}`,
     { timeout: "3m" },
   );
-  const reply = `It continues: ${spoken.trim().split("\n").at(-1) ?? ""}`;
+  const line = (spoken.trim().split("\n").at(-1) ?? "").replace(/[^\x20-\x7e]/g, "").replace(/ +/g, " ").trim();
+  const reply = `It continues: ${line || "to be"}`;
   await f.run(
     `${sh(input.relayBin)} message dm send watcher ${sh(reply)} --as voice`,
     { timeout: "30s" },
