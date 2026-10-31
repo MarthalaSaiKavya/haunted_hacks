@@ -70,6 +70,7 @@
   th, td { text-align: left; padding: 0.4rem 0.3rem; border-top: 1px solid var(--line); font-weight: 400; }
   th { color: var(--faint); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
   .save { color: var(--dim); line-height: 1.45; margin-top: 0.35rem; }
+  .save.fresh { color: var(--ember-2); }
   .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; margin: 0.7rem 0; }
   .step { border-top: 2px solid var(--ember); padding-top: 0.4rem; color: var(--dim); font-size: 0.92rem; }
   .step strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 0.15rem; }
@@ -127,7 +128,7 @@
   </div>
 
   <section style="margin:0 0 0.7rem">
-    <h2>Watcher to Voice</h2>
+    <h2 id="relay-title">Watcher to Voice</h2>
     <p class="save" id="relay-ask">The Watcher speaks after the next saved version.</p>
     <p class="save" id="relay-reply">The Voice answers in that same thread.</p>
     <p class="save" id="save-line">When a phone sends, its name lands on the ring and the curve steps down.</p>
@@ -420,26 +421,46 @@ function renderHistory(history) {
   }
 }
 
+let relayKey = '';
+
 function renderRelay(messages) {
-  let ask = '';
-  let reply = '';
+  let askIndex = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const text = messages[i].text || '';
-    if (!reply && messages[i].from === 'The Voice' && text.startsWith('To the Watcher:')) {
-      reply = text.slice('To the Watcher:'.length).trim();
+    if (messages[i].from === 'The Watcher' && (messages[i].text || '').startsWith('To the Voice:')) {
+      askIndex = i;
+      break;
     }
-    if (!ask && messages[i].from === 'The Watcher' && text.startsWith('To the Voice:')) {
-      ask = text.slice('To the Voice:'.length).trim();
-    }
-    if (ask && reply) break;
   }
-  if (ask) $('relay-ask').textContent = `Watcher: ${ask}`;
-  if (reply) $('relay-reply').textContent = `Voice: ${reply}`;
+  const ask = askIndex >= 0 ? messages[askIndex].text.slice('To the Voice:'.length).trim() : '';
+  let reply = '';
+  for (let i = askIndex + 1; i < messages.length; i++) {
+    if (messages[i].from === 'The Voice' && (messages[i].text || '').startsWith('To the Watcher:')) {
+      reply = messages[i].text.slice('To the Watcher:'.length).trim();
+    }
+  }
+  const versionMark = (ask.match(/Version (\d+)/) || [])[1];
+  $('relay-title').textContent = versionMark ? `Watcher to Voice · version ${versionMark}` : 'Watcher to Voice';
+  const nextKey = `${ask}\n${reply}`;
+  const changed = relayKey !== '' && nextKey !== relayKey;
+  relayKey = nextKey;
+  $('relay-ask').textContent = ask ? `Watcher: ${ask}` : 'The Watcher speaks after the next saved version.';
+  $('relay-reply').textContent = reply
+    ? `Voice: ${reply}`
+    : (ask ? 'The Voice is reading the saved weights.' : 'The Voice answers in that same thread.');
+  if (changed) {
+    $('relay-ask').classList.add('fresh');
+    $('relay-reply').classList.add('fresh');
+    setTimeout(() => {
+      $('relay-ask').classList.remove('fresh');
+      $('relay-reply').classList.remove('fresh');
+    }, 1600);
+  }
 }
 
 function renderSave(save, version) {
   if (seenVersion != null && version != null && version !== seenVersion) burst = 1;
   if (version != null) seenVersion = version;
+  if (save === undefined) return;
   if (!save || !save.phones?.length) {
     $('save-line').textContent = 'The first phone to finish this round is the one whose change Orca adds. Everyone else then trains on that new copy.';
     return;
@@ -491,6 +512,12 @@ async function connect() {
 }
 
 connect();
+setInterval(() => {
+  fetch('/live', { cache: 'no-store' })
+    .then((response) => response.ok ? response.json() : null)
+    .then((live) => { if (live) apply(live); })
+    .catch(() => {});
+}, 1000);
 </script>
 </body>
 </html>

@@ -49,6 +49,7 @@ type SavedRoom = {
     lossHistory: LossPoint[]
     messages: Note[]
     spokenVersion: number
+    lastSave?: LastSave | null
 }
 
 // Turn the base64 string phones send back into a list of weights.
@@ -99,6 +100,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
             lossHistory: this.lossHistory,
             messages: this.messages,
             spokenVersion: this.spokenVersion,
+            lastSave: this.lastSave,
         }
     }
 
