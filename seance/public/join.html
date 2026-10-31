@@ -229,42 +229,55 @@ function othersLine(clients) {
     : 'You are the only phone in the room. Your send is the one Orca will save.';
 }
 
-let peerNames = [];
+let peers = [];
+let sawRoster = false;
 let paused = false;
-let pausedAt = 0;
-let versionAtPause = 0;
 
-// The room moved on without this phone's delta. Stop guessing.
-// Starting a new model here makes every phone freeze, including the one that just saved.
-function dropCopy(reason) {
-  paused = true;
-  pausedAt = Date.now();
-  versionAtPause = version;
-  latestWeights = '';
-  lastFlat = null;
-  roundStart = null;
-  roundSteps = 0;
-  roundTokens = 0;
-  roundLossSum = 0;
-  abortFlag = true;
-  $('status').textContent = 'Another phone saved this round. This one waits so that phone can keep guessing.';
-  trace('pause', reason);
+// One phone guesses at a time. The others stay connected and do not start a model.
+// Two models on one machine freeze the phone that is supposed to move the version.
+function leaderSeat() {
+  const seats = peers.length ? [...peers] : [{ id: clientId || '', name: myName }];
+  if (clientId && !seats.some((seat) => seat.id === clientId)) {
+    seats.push({ id: clientId, name: myName });
+  }
+  seats.sort((a, b) => a.name.localeCompare(b.name) || String(a.id).localeCompare(String(b.id)));
+  return seats[0];
 }
 
-function maybeResume() {
-  if (!paused) return;
-  if (version !== versionAtPause) {
-    versionAtPause = version;
-    pausedAt = Date.now();
-    return;
+function stopGuessing(reason, status) {
+  if (!paused) {
+    paused = true;
+    abortFlag = true;
+    lastFlat = null;
+    roundStart = null;
+    roundSteps = 0;
+    roundTokens = 0;
+    roundLossSum = 0;
+    trace('pause', reason);
   }
-  const names = [...new Set([...peerNames, myName])].filter(Boolean).sort();
-  const index = Math.max(0, names.indexOf(myName));
-  if (Date.now() - pausedAt < 20000 + index * 25000) return;
-  paused = false;
-  $('status').textContent = 'The round was not moving. This phone is guessing again.';
-  trace('resume', `version ${version}`);
-  kick();
+  $('status').textContent = status;
+}
+
+function syncLeader() {
+  if (!sawRoster) return false;
+  const lead = leaderSeat();
+  const mine = clientId ? lead.id === clientId : lead.name === myName;
+  if (mine) {
+    if (paused) {
+      paused = false;
+      $('status').textContent = 'This phone is the one guessing for the room.';
+      trace('lead', `version ${version}`);
+    }
+    return true;
+  }
+  stopGuessing(`${lead.name} is guessing`, `${lead.name} is the one guessing. This phone stays connected.`);
+  return false;
+}
+
+function followLeader() {
+  if (!syncLeader()) return;
+  if (latestWeights) kick();
+  else loadWeights().then(() => { if (!paused) kick(); });
 }
 
 // Adopt a newer version. Keep training when this phone is the one that just saved.
@@ -283,7 +296,7 @@ function roomMoved(nextVersion, reason, save) {
   }
   const stale = (lastFlat || roundStart) && nextVersion > version;
   version = nextVersion;
-  if (stale) dropCopy(reason);
+  if (stale) stopGuessing(reason, 'Another phone moved the version. This phone waits.');
 }
 
 function applyMeta(msg) {
@@ -291,8 +304,10 @@ function applyMeta(msg) {
   roomMoved(msg.version, msg.type || 'socket', msg.lastSave);
   paintMine();
   if (msg.clients) {
-    peerNames = msg.clients.map((client) => client.name).filter(Boolean);
+    sawRoster = true;
+    peers = msg.clients.map((client) => ({ id: client.id, name: client.name || 'phone' }));
     othersLine(msg.clients);
+    followLeader();
   }
 }
 
@@ -383,7 +398,7 @@ async function maybeSend(reason) {
   try {
     const outcome = await sendOffering();
     if (outcome === 'ok') sentDeadline = deadline;
-    if (outcome === 'reload') dropCopy('offering was for an older version');
+    if (outcome === 'reload') stopGuessing('offering was for an older version', 'The room moved. This phone waits.');
   } finally {
     publishing = false;
   }
@@ -542,8 +557,8 @@ async function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
   ws.onopen = () => {
-    $('status').textContent = 'Connected. Loading the shared weights.';
-    loadWeights().then(() => kick());
+    $('status').textContent = 'Connected. Seeing who else is in the room.';
+    loadWeights();
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
@@ -555,7 +570,6 @@ async function connect() {
       setPhase('read');
       if (msg.weightsB64) latestWeights = msg.weightsB64;
       applyMeta(msg);
-      kick();
       return;
     }
     if (msg.type === 'round' && iSent) {
@@ -597,13 +611,8 @@ draw();
 setInterval(() => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   pollClock().then(() => {
-    maybeResume();
-    if (paused) return;
-    if (!latestWeights) loadWeights().then(() => kick());
-    else if (!supervisor) {
-      trace('restart', 'training loop was down');
-      kick();
-    }
+    followLeader();
+    if (paused || !sawRoster) return;
     return maybeSend('clock');
   });
 }, 1000);
