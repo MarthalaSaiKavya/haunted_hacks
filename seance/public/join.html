@@ -197,9 +197,19 @@ function paintMine() {
 }
 
 let roomDeadline = 0;
+let deadlineArmed = false;
 let sentDeadline = 0;
 let publishing = false;
 let lastFlat = null;
+let lesson = null;
+
+function noteDeadline(ms) {
+  if (!ms || ms === roomDeadline) return;
+  roomDeadline = ms;
+  // A deadline we only hear after it has passed is stale. Sending on it
+  // closes the round after one guess and makes every other phone start over.
+  deadlineArmed = ms > Date.now();
+}
 
 function trace(event, detail) {
   console.log('[seance]', myName, event, detail || '');
@@ -231,10 +241,17 @@ function dropCopy(reason) {
 }
 
 // Adopt a newer version. Keep training when this phone is the one that just saved.
-function roomMoved(nextVersion, reason) {
+function roomMoved(nextVersion, reason, save) {
   if (nextVersion == null || nextVersion === version) return;
-  if (publishing) {
+  const weSaved = Array.isArray(save?.phones) && save.phones.some((phone) => phone.name === myName);
+  if (publishing || weSaved) {
     version = nextVersion;
+    if (weSaved && lastFlat) {
+      roundStart = new Float32Array(lastFlat);
+      roundSteps = 0;
+      roundTokens = 0;
+      roundLossSum = 0;
+    }
     return;
   }
   const stale = (lastFlat || roundStart) && nextVersion > version;
@@ -243,8 +260,8 @@ function roomMoved(nextVersion, reason) {
 }
 
 function applyMeta(msg) {
-  if (msg.deadlineMs) roomDeadline = msg.deadlineMs;
-  roomMoved(msg.version, msg.type || 'socket');
+  noteDeadline(msg.deadlineMs);
+  roomMoved(msg.version, msg.type || 'socket', msg.lastSave);
   paintMine();
   if (msg.clients) othersLine(msg.clients);
 }
@@ -259,14 +276,22 @@ async function ensureBackend() {
   return 'cpu';
 }
 
-async function runLoop(initialWeights, device) {
+async function lessonData() {
+  if (lesson) return lesson;
   const tok = await fetch('/engine/data/shakespeare.tok.json').then((res) => {
     if (!res.ok) throw new Error(`tokenizer ${res.status}`);
     return res.json();
   });
-  const tokenizer = buildBPETokenizer(tok.merges);
-  const trainData = new Uint16Array(await fetch('/engine/data/shakespeare.train.bin').then((res) => res.arrayBuffer()));
-  const valData = new Uint16Array(await fetch('/engine/data/shakespeare.val.bin').then((res) => res.arrayBuffer()));
+  lesson = {
+    tokenizer: buildBPETokenizer(tok.merges),
+    trainData: new Uint16Array(await fetch('/engine/data/shakespeare.train.bin').then((res) => res.arrayBuffer())),
+    valData: new Uint16Array(await fetch('/engine/data/shakespeare.val.bin').then((res) => res.arrayBuffer())),
+  };
+  return lesson;
+}
+
+async function runLoop(initialWeights, device) {
+  const { tokenizer, trainData, valData } = await lessonData();
   defaultDevice(device);
   trainingHandle = {};
   roundSteps = 0;
@@ -302,7 +327,7 @@ async function runLoop(initialWeights, device) {
       paintMine();
       if (roundSteps % 3 === 0) draw();
       if (trainingHandle.getFlat) lastFlat = new Float32Array(trainingHandle.getFlat());
-      if (ws && ws.readyState === WebSocket.OPEN && step.step % 4 === 0) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'loss', loss: step.loss, tokens: roundTokens }));
       }
       if (workerWs && workerWs.readyState === WebSocket.OPEN && step.step % 4 === 0) {
@@ -315,10 +340,11 @@ async function runLoop(initialWeights, device) {
 }
 
 async function maybeSend(reason) {
-  if (publishing || !lastFlat || roundSteps < 1 || !roomDeadline) return;
+  if (publishing || !lastFlat || roundSteps < 1 || !roomDeadline || !deadlineArmed) return;
   const deadline = roomDeadline;
   if (sentDeadline === deadline) return;
-  if (Date.now() < deadline - 3000) return;
+  const now = Date.now();
+  if (now < deadline - 3000 || now > deadline + 2000) return;
   publishing = true;
   trace('send', `${reason} v${version}`);
   try {
@@ -363,14 +389,6 @@ async function sendOffering() {
     setPhase('loss');
     trace('send-fail', message);
     return 'fail';
-  }
-  if (workerWs && workerWs.readyState === WebSocket.OPEN) {
-    workerWs.send(JSON.stringify({
-      type: 'checkpoint',
-      weightsB64: encodeF32(flat),
-      loss,
-      step: steps,
-    }));
   }
   if (!result?.accepted) {
     $('last').textContent = result?.reason || 'Orca did not keep this change. This phone keeps guessing.';
@@ -526,8 +544,8 @@ async function pollClock() {
     const response = await fetch('/clock', { cache: 'no-store' });
     if (!response.ok) return;
     const body = await response.json();
-    if (body.deadlineMs) roomDeadline = body.deadlineMs;
-    roomMoved(body.version, 'clock');
+    noteDeadline(body.deadlineMs);
+    roomMoved(body.version, 'clock', body.lastSave);
     paintMine();
   } catch {
     // The next tick tries again. The socket still carries the deadline.
@@ -536,16 +554,8 @@ async function pollClock() {
 
 connect();
 draw();
-let wedgedNote = 0;
 setInterval(() => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (supervisor && lastStepAt && Date.now() - lastStepAt > 20000 && !abortFlag) {
-    abortFlag = true;
-    if (Date.now() - wedgedNote > 20000) {
-      wedgedNote = Date.now();
-      trace('wedged', 'no step for 20s');
-    }
-  }
   if (!latestWeights) loadWeights().then(() => kick());
   else if (!supervisor) {
     trace('restart', 'training loop was down');

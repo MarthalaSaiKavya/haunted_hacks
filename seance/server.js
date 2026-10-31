@@ -282,6 +282,7 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
         version: snap.version,
         deadlineMs: snap.deadlineMs,
         submissions: snap.submissions,
+        lastSave: snap.lastSave,
       }, { headers: { 'cache-control': 'no-store' } });
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'clock failed';
