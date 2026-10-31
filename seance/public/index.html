@@ -46,14 +46,18 @@
   .stat .sub { color: var(--dim); font-size: 0.78rem; margin-top: 0.15rem; }
   .grid { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 0.7rem; }
   section { background: var(--bg-2); border: 1px solid var(--line); padding: 0.85rem; }
-  .flow { display: grid; grid-template-columns: 1.4fr auto 0.7fr; gap: 0.6rem; align-items: center; margin-top: 0.4rem; }
-  .phones { display: flex; flex-direction: column; gap: 0.35rem; }
-  .chip { display: flex; justify-content: space-between; gap: 0.6rem; border: 1px solid var(--line); padding: 0.4rem 0.55rem; color: var(--ink); }
-  .chip b { color: var(--ember-2); font-weight: 500; }
-  .arrow { color: var(--faint); text-align: center; font-size: 0.75rem; line-height: 1.35; }
-  .node { border: 1px solid var(--ember); min-height: 5.5rem; display: grid; place-items: center; text-align: center; color: var(--ember-2); padding: 0.4rem; }
-  .node strong { display: block; letter-spacing: 0.14em; font-size: 0.72rem; }
-  canvas { width: 100%; height: 240px; display: block; background: #0c0a09; }
+  .stage { position: relative; padding: 0; overflow: hidden; margin-bottom: 0.7rem; }
+  .stage canvas { width: 100%; height: 540px; display: block; background: #0c0a09; }
+  .stage-readout {
+    position: absolute; left: 50%; top: 33%; transform: translate(-50%, -50%);
+    text-align: center; pointer-events: none; width: min(280px, 70%);
+  }
+  .stage-readout .loss {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: clamp(3.2rem, 8vw, 5.4rem); line-height: 0.85; color: var(--ember-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .stage-readout .cap { color: var(--dim); margin-top: 0.35rem; font-size: 0.95rem; }
   table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   th, td { text-align: left; padding: 0.4rem 0.3rem; border-top: 1px solid var(--line); font-weight: 400; }
   th { color: var(--faint); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -65,9 +69,10 @@
   #error { color: #e7b2a8; min-height: 1.1em; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; }
   .phone-only { display: none; color: var(--ember-2); margin-top: 0.6rem; }
   @media (max-width: 860px) {
-    header, .stats, .grid, .flow, .steps, .join { grid-template-columns: 1fr; }
+    header, .stats, .grid, .steps, .join { grid-template-columns: 1fr; }
     .phone-only { display: block; }
-    canvas { height: 180px; }
+    .stage canvas { height: 420px; }
+    .stage-readout { top: 30%; }
   }
 </style>
 </head>
@@ -90,12 +95,14 @@
     <button id="copy" type="button">Copy link</button>
   </div>
 
-  <div class="steps">
-    <div class="step"><strong>1 · A phone reads</strong>A few lines of Shakespeare, on that phone.</div>
-    <div class="step"><strong>2 · It guesses</strong>The next piece of the line. The loss is how wrong it was.</div>
-    <div class="step"><strong>3 · It sends the change</strong>Not the whole model. Only how the 36,096 weights moved.</div>
-    <div class="step"><strong>4 · Orca saves</strong>The first phone to send this round moves the shared copy. The version goes up.</div>
-  </div>
+  <section class="stage" aria-label="Live room">
+    <canvas id="stage" width="1100" height="540"></canvas>
+    <div class="stage-readout">
+      <div class="kicker">Shared loss</div>
+      <div class="loss" id="stage-loss">—</div>
+      <p class="cap" id="stage-cap">Open the link. Your phone appears on the ring.</p>
+    </div>
+  </section>
 
   <div class="stats">
     <div class="stat"><div class="label">Phones connected</div><div class="num" id="phones">0</div><div class="sub" id="presence">waiting for a phone</div></div>
@@ -104,30 +111,27 @@
     <div class="stat"><div class="label">This round</div><div class="num" id="countdown">—</div><div class="sub" id="offer">first send moves the model</div></div>
   </div>
 
-  <section style="margin-bottom:0.7rem">
-    <h2>Who is training right now</h2>
-    <div class="flow">
-      <div class="phones" id="chips"><div class="chip"><b>No phone yet</b><span>open the link</span></div></div>
-      <div class="arrow">each phone sends<br>only its change<br>↓</div>
-      <div class="node"><strong>ORCA</strong><span id="orca-blurb">one saved copy</span></div>
-    </div>
-    <p class="save" id="save-line">When a phone sends, its name, piece count, and loss show up here.</p>
-  </section>
+  <p class="save" id="save-line" style="margin:0 0 0.7rem">When a phone sends, its name lands on the ring and the curve steps down.</p>
+  <p id="status">Connecting to Orca.</p>
+  <p id="error"></p>
+
+  <div class="steps">
+    <div class="step"><strong>1 · A phone reads</strong>A few lines of Shakespeare, on that phone.</div>
+    <div class="step"><strong>2 · It guesses</strong>The next piece of the line. The loss is how wrong it was.</div>
+    <div class="step"><strong>3 · It sends the change</strong>Not the whole model. Only how the 36,096 weights moved.</div>
+    <div class="step"><strong>4 · Orca saves</strong>The first phone to send this round moves the shared copy. The version goes up.</div>
+  </div>
 
   <div class="grid">
-    <section>
-      <h2>Shared loss after each version</h2>
-      <canvas id="chart" width="720" height="240"></canvas>
-      <p id="status">Connecting to Orca.</p>
-      <p id="error"></p>
-    </section>
     <section>
       <h2>Phones this round</h2>
       <table>
         <thead><tr><th>Phone</th><th>Loss now</th><th>Pieces</th><th>State</th></tr></thead>
         <tbody id="roster"><tr><td colspan="4">No phone is connected.</td></tr></tbody>
       </table>
-      <h2 style="margin-top:0.9rem">Recent versions</h2>
+    </section>
+    <section>
+      <h2>Recent versions</h2>
       <table>
         <thead><tr><th>Version</th><th>Loss</th><th>Change</th></tr></thead>
         <tbody id="versions"><tr><td colspan="3">No version has closed yet.</td></tr></tbody>
@@ -152,6 +156,14 @@ let ws = null;
 let deadlineMs = 0;
 let roomHistory = [];
 let phones = [];
+let shownLoss = null;
+let spin = 0;
+let burst = 0;
+let seenVersion = null;
+let lastFrame = performance.now();
+const spots = new Map();
+const particles = [];
+const ink = ['#e39a56', '#f1d3a8', '#c6d3a1', '#d9c48a', '#e7b2a8'];
 
 function clockTick() {
   if (!deadlineMs) return;
@@ -160,75 +172,204 @@ function clockTick() {
 }
 setInterval(clockTick, 250);
 
-function draw() {
-  const canvas = $('chart');
+function nameHue(name) {
+  let hash = 0;
+  for (const char of name) hash = (hash * 33 + char.charCodeAt(0)) >>> 0;
+  return hash;
+}
+
+function paint(now) {
+  const dt = Math.min(48, now - lastFrame);
+  lastFrame = now;
+  spin += dt * 0.00022;
+  burst = Math.max(0, burst - dt * 0.0009);
+  const canvas = $('stage');
   const rect = canvas.parentElement.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  const cssH = window.innerWidth < 860 ? 180 : 240;
-  canvas.width = Math.max(280, rect.width) * dpr;
-  canvas.height = cssH * dpr;
-  canvas.style.height = cssH + 'px';
+  const cssH = window.innerWidth < 860 ? 420 : 540;
+  const cssW = Math.max(320, rect.width);
+  if (canvas.width !== Math.floor(cssW * dpr) || canvas.height !== Math.floor(cssH * dpr)) {
+    canvas.width = Math.floor(cssW * dpr);
+    canvas.height = Math.floor(cssH * dpr);
+    canvas.style.height = cssH + 'px';
+  }
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const w = canvas.width / dpr;
+  const w = cssW;
   const h = cssH;
   ctx.fillStyle = '#0c0a09';
   ctx.fillRect(0, 0, w, h);
-  const pad = { l: 46, r: 12, t: 16, b: 28 };
+
+  const cx = w / 2;
+  const cy = h * 0.33;
+  const rx = Math.min(w * 0.38, 420);
+  const ry = Math.min(h * 0.2, 130);
+
+  const ordered = [...phones].sort((a, b) => a.name.localeCompare(b.name));
+  ordered.forEach((phone, index) => {
+    const angle = spin + (index / Math.max(1, ordered.length)) * Math.PI * 2 - Math.PI / 2;
+    spots.set(phone.name, {
+      x: cx + Math.cos(angle) * rx,
+      y: cy + Math.sin(angle) * ry,
+      angle,
+      color: ink[nameHue(phone.name) % ink.length],
+    });
+    if (phone.loss != null && Math.random() < dt / 220) {
+      const spot = spots.get(phone.name);
+      particles.push({ x: spot.x, y: spot.y, life: 1, color: spot.color });
+    }
+  });
+  for (const name of [...spots.keys()]) {
+    if (!phones.some((phone) => phone.name === name)) spots.delete(name);
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const dot = particles[i];
+    dot.x += (cx - dot.x) * dt * 0.0032;
+    dot.y += (cy - dot.y) * dt * 0.0032;
+    dot.life -= dt * 0.0011;
+    if (dot.life <= 0) particles.splice(i, 1);
+  }
+  if (particles.length > 160) particles.splice(0, particles.length - 160);
+
+  ctx.font = '12px ui-monospace, monospace';
+  for (const phone of phones) {
+    const spot = spots.get(phone.name);
+    ctx.strokeStyle = 'rgba(227,154,86,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(spot.x, spot.y);
+    ctx.lineTo(cx, cy);
+    ctx.stroke();
+    ctx.fillStyle = spot.color;
+    ctx.beginPath();
+    ctx.arc(spot.x, spot.y, phone.offered ? 8 : 5, 0, Math.PI * 2);
+    ctx.fill();
+    const labelX = spot.x + Math.cos(spot.angle) * 18;
+    const labelY = spot.y + Math.sin(spot.angle) * 16;
+    ctx.fillStyle = '#f6efe4';
+    ctx.textAlign = Math.cos(spot.angle) > 0.35 ? 'left' : Math.cos(spot.angle) < -0.35 ? 'right' : 'center';
+    ctx.textBaseline = 'middle';
+    const loss = phone.loss == null ? 'joining' : Number(phone.loss).toFixed(2);
+    ctx.fillText(`${phone.name}  ${loss}`, labelX, labelY);
+  }
+
+  for (const dot of particles) {
+    ctx.globalAlpha = Math.max(0, dot.life);
+    ctx.fillStyle = dot.color;
+    ctx.beginPath();
+    ctx.arc(dot.x, dot.y, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  const left = deadlineMs ? Math.max(0, deadlineMs - Date.now()) : 12000;
+  const swept = 1 - Math.min(1, left / 12000);
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#2a2420';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 92, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = '#e39a56';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 92, -Math.PI / 2, -Math.PI / 2 + swept * Math.PI * 2);
+  ctx.stroke();
+  if (burst > 0) {
+    ctx.strokeStyle = `rgba(241,211,168,${burst})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 92 + (1 - burst) * 70, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const plot = { l: 48, r: 16, t: h * 0.62, b: h - 28 };
   ctx.strokeStyle = '#2a2420';
   ctx.fillStyle = '#7d7268';
   ctx.font = '11px ui-monospace, monospace';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  if (roomHistory.length === 0) {
+  ctx.lineWidth = 1;
+  if (!roomHistory.length) {
     ctx.textAlign = 'left';
-    ctx.fillText('The curve starts when the first phone sends a change.', pad.l, h / 2);
-    return;
-  }
-  const values = roomHistory.map((row) => row.avgLoss);
-  let min = Math.min(...values, 4);
-  let max = Math.max(...values, 6.9);
-  const span = Math.max(0.4, max - min);
-  min -= span * 0.08;
-  max += span * 0.08;
-  for (let i = 0; i <= 3; i++) {
-    const y = pad.t + ((h - pad.t - pad.b) * i) / 3;
+    ctx.fillText('The curve starts when the first phone sends a change.', plot.l, (plot.t + plot.b) / 2);
+  } else {
+    const values = roomHistory.map((row) => row.avgLoss);
+    let min = Math.min(...values, 3.2);
+    let max = Math.max(...values, 6.9);
+    const span = Math.max(0.5, max - min);
+    min -= span * 0.12;
+    max += span * 0.12;
+    for (let i = 0; i <= 3; i++) {
+      const y = plot.t + ((plot.b - plot.t) * i) / 3;
+      ctx.beginPath();
+      ctx.moveTo(plot.l, y);
+      ctx.lineTo(w - plot.r, y);
+      ctx.stroke();
+      ctx.fillText((max - ((max - min) * i) / 3).toFixed(1), plot.l - 8, y);
+    }
+    const xAt = (i) => roomHistory.length === 1
+      ? (plot.l + w - plot.r) / 2
+      : plot.l + (i / (roomHistory.length - 1)) * (w - plot.l - plot.r);
+    const yAt = (value) => plot.t + (1 - (value - min) / (max - min)) * (plot.b - plot.t);
     ctx.beginPath();
-    ctx.moveTo(pad.l, y);
-    ctx.lineTo(w - pad.r, y);
-    ctx.stroke();
-    ctx.fillText((max - ((max - min) * i) / 3).toFixed(2), pad.l - 8, y);
-  }
-  const xAt = (i) => roomHistory.length === 1
-    ? (pad.l + w - pad.r) / 2
-    : pad.l + (i / (roomHistory.length - 1)) * (w - pad.l - pad.r);
-  const yAt = (value) => pad.t + (1 - (value - min) / (max - min)) * (h - pad.t - pad.b);
-  ctx.beginPath();
-  ctx.strokeStyle = '#e39a56';
-  ctx.lineWidth = 2;
-  values.forEach((value, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(value)) : ctx.lineTo(xAt(i), yAt(value))));
-  ctx.stroke();
-  ctx.fillStyle = '#f1d3a8';
-  values.forEach((value, i) => {
-    ctx.beginPath();
-    ctx.arc(xAt(i), yAt(value), 3, 0, Math.PI * 2);
+    ctx.moveTo(xAt(0), plot.b);
+    values.forEach((value, i) => ctx.lineTo(xAt(i), yAt(value)));
+    ctx.lineTo(xAt(values.length - 1), plot.b);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(227,154,86,0.16)';
     ctx.fill();
-  });
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = '#7d7268';
-  ctx.fillText('v' + roomHistory[0].version, xAt(0), h - 18);
-  if (roomHistory.length > 1) ctx.fillText('v' + roomHistory.at(-1).version, xAt(roomHistory.length - 1), h - 18);
+    ctx.beginPath();
+    ctx.strokeStyle = '#e39a56';
+    ctx.lineWidth = 2.5;
+    values.forEach((value, i) => (i === 0 ? ctx.moveTo(xAt(i), yAt(value)) : ctx.lineTo(xAt(i), yAt(value))));
+    ctx.stroke();
+    const last = values.at(-1);
+    ctx.fillStyle = '#f1d3a8';
+    ctx.beginPath();
+    ctx.arc(xAt(values.length - 1), yAt(last), 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#7d7268';
+    ctx.fillText('v' + roomHistory[0].version, xAt(0), plot.b + 6);
+    ctx.textAlign = 'right';
+    if (roomHistory.length > 1) ctx.fillText('v' + roomHistory.at(-1).version, xAt(values.length - 1), plot.b + 6);
+    const guess = yAt(Math.min(max, Math.max(min, 6.9)));
+    if (guess > plot.t && guess < plot.b) {
+      ctx.strokeStyle = '#3c332c';
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(plot.l, guess);
+      ctx.lineTo(w - plot.r, guess);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.textAlign = 'left';
+      ctx.fillText('6.9 start', plot.l + 6, guess - 12);
+    }
+  }
+
+  const target = roomHistory.at(-1)?.avgLoss ?? null;
+  if (target == null) {
+    shownLoss = null;
+    $('stage-loss').textContent = '—';
+  } else {
+    if (shownLoss == null) shownLoss = target;
+    shownLoss += (target - shownLoss) * Math.min(1, dt / 280);
+    $('stage-loss').textContent = shownLoss.toFixed(2);
+  }
+  const names = phones.map((phone) => phone.name);
+  $('stage-cap').textContent = phones.length
+    ? `${phones.length} phone${phones.length === 1 ? '' : 's'} on the ring · version ${seenVersion ?? '—'}`
+    : 'Open the link. Your phone appears on the ring.';
+  if (names.length > 8) $('stage-cap').textContent = `${phones.length} phones training · version ${seenVersion ?? '—'}`;
+
+  requestAnimationFrame(paint);
 }
-window.addEventListener('resize', draw);
+requestAnimationFrame(paint);
 
 function renderPhones(list) {
   phones = list || [];
   $('phones').textContent = String(phones.length);
   $('presence').textContent = phones.length === 0 ? 'waiting for a phone' : (phones.length === 1 ? '1 phone training' : `${phones.length} phones training`);
-  $('chips').innerHTML = phones.length
-    ? phones.map((phone) => `<div class="chip"><b>${phone.name}</b><span>${phone.loss == null ? 'just joined' : 'loss ' + Number(phone.loss).toFixed(2)}</span></div>`).join('')
-    : '<div class="chip"><b>No phone yet</b><span>open the link</span></div>';
   $('roster').innerHTML = phones.length
     ? phones.map((phone) => `<tr><td>${phone.name}</td><td>${phone.loss == null ? '—' : Number(phone.loss).toFixed(2)}</td><td>${phone.tokens || 0}</td><td>${phone.offered ? 'sending' : 'training'}</td></tr>`).join('')
     : '<tr><td colspan="4">No phone is connected.</td></tr>';
@@ -254,11 +395,11 @@ function renderHistory(history) {
       return `<tr><td>${row.version}</td><td>${row.avgLoss.toFixed(2)}</td><td>${change}</td></tr>`;
     }).join('');
   }
-  draw();
 }
 
 function renderSave(save, version) {
-  $('orca-blurb').textContent = version == null ? 'one saved copy' : `version ${version}`;
+  if (seenVersion != null && version != null && version !== seenVersion) burst = 1;
+  if (version != null) seenVersion = version;
   if (!save || !save.phones?.length) {
     $('save-line').textContent = 'The first phone to finish this round is the one whose change Orca adds. Everyone else then trains on that new copy.';
     return;
@@ -309,7 +450,6 @@ async function connect() {
 }
 
 connect();
-draw();
 </script>
 </body>
 </html>
