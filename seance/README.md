@@ -2,7 +2,7 @@
 
 Phones train a tiny Shakespeare model and send only the change in the weights. Orca (`seance/hall`, class `Orca`, id `orca`) is the one shared actor. It keeps the averaged weights. Each phone also has its own Worker actor, which only remembers that phone.
 
-Open `/` on the demo screen. That page is Orca: the join link, every phone, and the shared loss. Phones open `/join`.
+Open `/` on the demo screen. That page is Orca: the join link, every phone, and the shared loss. Phones open `/join`. A phone posts its weight change to `/publish`. The full change is too large for the hosted socket, so that post is what moves the version.
 
 Two processes:
 

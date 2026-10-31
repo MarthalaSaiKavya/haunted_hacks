@@ -78,6 +78,10 @@ export declare namespace actors {
                 Args: Parameters<Stub["snapshot"]>
                 Result: Awaited<ReturnType<Stub["snapshot"]>>
             }
+            ["submitChange"]: {
+                Args: Parameters<Stub["submitChange"]>
+                Result: Awaited<ReturnType<Stub["submitChange"]>>
+            }
         }
         interface Methods extends $MethodTypes {}
         /**
@@ -98,6 +102,10 @@ export declare namespace actors {
             namespace snapshot {
                 type Args = $MethodTypes["snapshot"]["Args"]
                 type Result = $MethodTypes["snapshot"]["Result"]
+            }
+            namespace submitChange {
+                type Args = $MethodTypes["submitChange"]["Args"]
+                type Result = $MethodTypes["submitChange"]["Result"]
             }
         }
     }

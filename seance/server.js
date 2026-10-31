@@ -64,6 +64,7 @@ async function relay(args) {
     cwd: relayCwd,
     stdout: 'piped',
     stderr: 'piped',
+    signal: AbortSignal.timeout(8000),
   });
   const out = await proc.output();
   const text = new TextDecoder().decode(out.stdout).trim();
@@ -202,6 +203,28 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
     if (!upstream) return new Response('ticket expired', { status: 404 });
     tickets.delete(ticket);
     return proxyActorSocket(req, upstream);
+  }
+
+  if (req.method === 'POST' && url.pathname === '/publish') {
+    let message;
+    try {
+      message = await req.json();
+    } catch {
+      return Response.json({ accepted: false, version: 0, reason: 'the change was not valid JSON', weightsB64: '' }, { status: 400 });
+    }
+    try {
+      const result = await room().submitChange({
+        name: String(message.name ?? 'a phone').slice(0, 32),
+        deltaB64: String(message.deltaB64 ?? ''),
+        tokens: Number(message.tokens),
+        loss: Number(message.loss),
+        baseVersion: Number(message.baseVersion),
+      });
+      return Response.json(result, { headers: { 'cache-control': 'no-store' } });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Orca did not accept the change';
+      return Response.json({ accepted: false, version: 0, reason, weightsB64: '' }, { status: 502 });
+    }
   }
 
   if (req.method === 'POST' && url.pathname === '/grant') {

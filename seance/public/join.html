@@ -257,17 +257,19 @@ async function runLoop(initialWeights, device) {
         setPhase('send');
         $('status').textContent = 'Sending your change to Orca.';
         submitPending = false;
-        sendOffering();
-        abortFlag = true;
-        break;
+        const saved = await sendOffering();
+        if (saved) {
+          abortFlag = true;
+          return saved;
+        }
       }
       if (event.step % 2 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 }
 
-function sendOffering() {
-  if (!ws || ws.readyState !== WebSocket.OPEN || roundSteps === 0 || !trainingHandle.getFlat) return;
+async function sendOffering() {
+  if (roundSteps === 0 || !trainingHandle.getFlat) return '';
   const flat = trainingHandle.getFlat();
   let delta;
   if (roundStart && roundStart.length === flat.length) {
@@ -277,15 +279,25 @@ function sendOffering() {
     delta = flat;
   }
   const loss = roundLossSum / roundSteps;
-  iSent = true;
-  ws.send(JSON.stringify({
-    type: 'publish',
-    deltaB64: encodeF32(delta),
-    tokens: Math.max(1, roundTokens),
-    loss,
-    baseVersion: version,
-  }));
-  $('contrib').textContent = `You sent a change from version ${version}. Your guesses scored ${loss.toFixed(2)} across ${roundTokens} pieces.`;
+  let result = null;
+  try {
+    const response = await fetch('/publish', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: myName,
+        deltaB64: encodeF32(delta),
+        tokens: Math.max(1, roundTokens),
+        loss,
+        baseVersion: version,
+      }),
+    });
+    result = await response.json();
+  } catch (error) {
+    $('last').textContent = error instanceof Error ? error.message : 'The send to Orca failed.';
+    setPhase('loss');
+    return '';
+  }
   if (workerWs && workerWs.readyState === WebSocket.OPEN) {
     workerWs.send(JSON.stringify({
       type: 'checkpoint',
@@ -294,6 +306,18 @@ function sendOffering() {
       step: roundSteps,
     }));
   }
+  if (!result?.accepted) {
+    $('last').textContent = result?.reason || 'Orca did not keep this change. This phone keeps guessing.';
+    setPhase('loss');
+    if (result?.weightsB64) return result.weightsB64;
+    return '';
+  }
+  iSent = true;
+  $('contrib').textContent = `You sent a change from version ${version}. Your guesses scored ${loss.toFixed(2)} across ${roundTokens} pieces.`;
+  $('last').textContent = `Orca saved your change. The shared model is now version ${result.version}.`;
+  version = result.version;
+  paintMine();
+  return result.weightsB64 || '';
 }
 
 async function startTraining(weightsB64) {
@@ -310,7 +334,13 @@ async function startTraining(weightsB64) {
     try {
       device = await ensureBackend();
       if (mine !== turn) return;
-      await runLoop(weights, device);
+      let next = await runLoop(weights, device);
+      while (next && mine === turn) {
+        weights = decodeF32(next);
+        abortFlag = false;
+        iSent = false;
+        next = await runLoop(weights, device);
+      }
     } catch (error) {
       if (mine !== turn) return;
       if (device !== 'cpu') {

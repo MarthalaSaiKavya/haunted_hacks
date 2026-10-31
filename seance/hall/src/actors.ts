@@ -204,32 +204,48 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         this.broadcast(await this.full("pulse"))
     }
 
+    // A phone's weight change arrives over HTTP. The socket path drops a full
+    // 36,096-weight payload, so the page posts it here instead.
+    async submitChange(message: { name: string; deltaB64: string; tokens: number; loss: number; baseVersion: number }): Promise<{ accepted: boolean; version: number; reason: string; weightsB64: string }> {
+        const before = this.version
+        const result = await this.takeOffering(message.name || "a phone", message)
+        const closed = this.version !== before
+        if (closed) this.broadcast(await this.full("round", true))
+        else this.broadcast(await this.full("pulse"))
+        return { accepted: closed, version: this.version, reason: result.reason, weightsB64: closed ? this.weightsB64 : "" }
+    }
+
     // Accept a phone's weight change if it matches this version and this model size.
     // One offering is enough (quorum is 1), so the round usually closes here.
     private async acceptOffering(socket: Socket, message: Extract<Incoming, { type: "publish" }>): Promise<void> {
-        if (message.baseVersion !== this.version) {
-            socket.send(await this.full("reject", true, { reason: `the room is on version ${this.version}` }))
+        const before = this.version
+        const result = await this.takeOffering(socket.metadata.name || "a phone", message, socket)
+        if (!result.accepted) {
+            socket.send(await this.full("reject", true, { reason: result.reason }))
             return
+        }
+        if (this.version !== before) this.broadcast(await this.full("round", true))
+        else this.broadcast(await this.full("pulse"))
+    }
+
+    // Check one change, mix it in when the round has enough, and say what happened.
+    private async takeOffering(name: string, message: { deltaB64: string; tokens: number; loss: number; baseVersion: number }, socket?: Socket): Promise<{ accepted: boolean; version: number; reason: string }> {
+        if (message.baseVersion !== this.version) {
+            return { accepted: false, version: this.version, reason: `the room is on version ${this.version}` }
         }
         const delta = decodeF32(message.deltaB64)
         const have = decodeF32(this.weightsB64)
         if (delta.length === 0 || !(message.tokens > 0) || typeof message.loss !== "number") {
-            socket.send(await this.full("reject", false, { reason: "offering is incomplete" }))
-            return
+            return { accepted: false, version: this.version, reason: "offering is incomplete" }
         }
         if (have.length !== 0 && delta.length !== have.length) {
-            socket.send(await this.full("reject", false, { reason: `offering length ${delta.length} does not match the room` }))
-            return
+            return { accepted: false, version: this.version, reason: `offering length ${delta.length} does not match the room` }
         }
-        const name = socket.metadata.name || "a phone"
         this.offerings = [...this.offerings, { delta, tokens: message.tokens, loss: message.loss, name }]
-        await this.remember(socket, { offered: true, tokens: message.tokens, loss: message.loss })
-        if (this.offerings.length >= QUORUM) {
-            await this.closeRound()
-            this.broadcast(await this.full("round", true))
-            return
-        }
-        this.broadcast(await this.full("pulse"))
+        if (socket) await this.remember(socket, { offered: true, tokens: message.tokens, loss: message.loss })
+        else this.board = this.board.map((row) => row.name === name ? { ...row, offered: true, tokens: message.tokens, loss: message.loss } : row)
+        if (this.offerings.length >= QUORUM) await this.closeRound()
+        return { accepted: true, version: this.version, reason: "" }
     }
 
     // Mix the offerings into the saved weights, write the mean loss, and open the next round.

@@ -15,11 +15,24 @@ interface $OrcaContract {
         spokenVersion: number
         deadlineMs: number
         submitSent: boolean
+        lastSave: LastSave | null
     }
     Methods: {
         recordLine(from: string, text: string, spokenVersion: number): Promise<void>
         seed(saved: SavedRoom): Promise<number>
         snapshot(): Promise<SavedRoom>
+        submitChange(message: {
+            name: string
+            deltaB64: string
+            tokens: number
+            loss: number
+            baseVersion: number
+        }): Promise<{
+            accepted: boolean
+            version: number
+            reason: string
+            weightsB64: string
+        }>
     }
 }
 interface $WorkerContract {
@@ -50,21 +63,35 @@ type Incoming =
           loss: number
           baseVersion: number
       }
+type LastSave = {
+    version: number
+    avgLoss: number
+    phones: SavePhone[]
+}
 type LossPoint = {
     version: number
     avgLoss: number
 }
 type Metadata = {
     name: string
+    role?: "phone" | "screen"
 }
 type Metadata$1 = {
     name: string
+    role?: "phone" | "screen"
 }
 type Note = {
     at: number
     from: string
     text: string
     versionMark?: number
+}
+type PhoneLive = {
+    id: string
+    name: string
+    loss: number | null
+    tokens: number
+    offered: boolean
 }
 type RoomView = {
     type: "hello" | "pulse" | "round" | "submit" | "reject"
@@ -75,11 +102,18 @@ type RoomView = {
     avgLoss: number | null
     messages: Note[]
     clients: Seat[]
+    phones: PhoneLive[]
+    lastSave: LastSave | null
     deadlineMs: number
     submissions: number
     quorum: number
     reason?: string
     clientId?: string
+}
+type SavePhone = {
+    name: string
+    tokens: number
+    loss: number
 }
 type SavedRoom = {
     version: number
