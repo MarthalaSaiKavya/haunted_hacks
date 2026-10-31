@@ -242,36 +242,45 @@ async function runLoop(initialWeights, device) {
   setPhase('loss');
   $('status').textContent = device === 'wasm' ? 'This phone is guessing the next piece.' : 'This phone is training on the slow engine.';
   $('contrib').textContent = `You are training on version ${version}. Nothing has been sent yet.`;
-  for await (const event of gen) {
+  while (!abortFlag) {
+    const event = await Promise.race([
+      gen.next(),
+      new Promise((resolve) => setTimeout(() => resolve('timeout'), 8000)),
+    ]);
+    if (event === 'timeout') {
+      $('status').textContent = 'Guessing stalled. Starting again.';
+      break;
+    }
+    if (event.done) break;
+    const step = event.value;
     if (abortFlag) break;
-    if (event.type === 'step') {
+    if (step.type === 'step') {
       roundSteps += 1;
-      roundLossSum += event.loss;
-      roundTokens += event.batchSize ?? 8;
-      myLosses.push(event.loss);
+      roundLossSum += step.loss;
+      roundTokens += step.batchSize ?? 8;
+      myLosses.push(step.loss);
       if (myLosses.length > 40) myLosses.shift();
-      $('loss').textContent = event.loss.toFixed(2);
-      $('step').textContent = `guess ${event.step} on this phone`;
+      $('loss').textContent = step.loss.toFixed(2);
+      $('step').textContent = `guess ${step.step} on this phone`;
       paintMine();
       if (roundSteps % 3 === 0) draw();
-      if (ws && ws.readyState === WebSocket.OPEN && event.step % 4 === 0) {
-        ws.send(JSON.stringify({ type: 'loss', loss: event.loss, tokens: roundTokens }));
+      if (ws && ws.readyState === WebSocket.OPEN && step.step % 4 === 0) {
+        ws.send(JSON.stringify({ type: 'loss', loss: step.loss, tokens: roundTokens }));
       }
-      if (workerWs && workerWs.readyState === WebSocket.OPEN && event.step % 4 === 0) {
-        workerWs.send(JSON.stringify({ type: 'progress', loss: event.loss, step: event.step }));
+      if (workerWs && workerWs.readyState === WebSocket.OPEN && step.step % 4 === 0) {
+        workerWs.send(JSON.stringify({ type: 'progress', loss: step.loss, step: step.step }));
       }
-      if (submitPending && sentForVersion !== version) {
+      if (submitPending) {
         setPhase('send');
         $('status').textContent = 'Sending your change to Orca.';
         submitPending = false;
-        const saved = await sendOffering();
-        if (saved) {
-          latestWeights = saved;
+        const outcome = await sendOffering();
+        if (outcome === 'reload') {
           abortFlag = true;
-          return saved;
+          break;
         }
       }
-      if (event.step % 2 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
+      if (step.step % 2 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   }
 }
@@ -318,16 +327,25 @@ async function sendOffering() {
   if (!result?.accepted) {
     $('last').textContent = result?.reason || 'Orca did not keep this change. This phone keeps guessing.';
     setPhase('loss');
-    if (result?.weightsB64) return result.weightsB64;
+    const stale = typeof result?.reason === 'string' && result.reason.includes('version');
+    if (stale) {
+      await loadWeights();
+      return 'reload';
+    }
     return '';
   }
   iSent = true;
-  sentForVersion = version;
-  $('contrib').textContent = `You sent a change from version ${version}. Your guesses scored ${loss.toFixed(2)} across ${roundTokens} pieces.`;
-  $('last').textContent = `Orca saved your change. The shared model is now version ${result.version}.`;
   version = result.version;
+  sentForVersion = -1;
+  roundStart = new Float32Array(flat);
+  roundSteps = 0;
+  roundTokens = 0;
+  roundLossSum = 0;
+  $('contrib').textContent = `You sent a change from version ${version - 1}. Your guesses scored ${loss.toFixed(2)}.`;
+  $('last').textContent = `Orca saved your change. The shared model is now version ${result.version}.`;
   paintMine();
-  return result.weightsB64 || '';
+  setPhase('loss');
+  return '';
 }
 
 async function loadWeights() {
@@ -438,11 +456,11 @@ async function connect() {
       iSent = false;
     }
     applyMeta(msg);
-    if ((msg.type === 'hello' || msg.type === 'round') && msg.weightsB64) latestWeights = msg.weightsB64;
     if (msg.type === 'hello' || msg.type === 'round') {
       sentForVersion = -1;
-      if (!msg.weightsB64) loadWeights();
-      kick();
+      latestWeights = '';
+      abortFlag = true;
+      loadWeights().then(() => kick());
     }
     if (msg.type === 'submit') {
       submitPending = true;

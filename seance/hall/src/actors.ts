@@ -128,7 +128,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
     // A phone joined. Send it the full weights, and tell everyone else the seat list changed.
     async onConnect(socket: Socket): Promise<void> {
         await this.ensureClock()
-        socket.send(await this.full("hello", true, { clientId: socket.id }))
+        socket.send(await this.full("hello", false, { clientId: socket.id }))
         this.broadcast(await this.full("pulse"), { except: socket })
     }
 
@@ -166,7 +166,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         if (now >= this.deadlineMs) {
             if (this.offerings.length > 0) {
                 await this.closeRound()
-                this.broadcast(await this.full("round", true))
+                this.broadcast(await this.full("round", false))
                 return
             }
             await this.arm(now + ROUND_MS)
@@ -212,7 +212,7 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         const before = this.version
         const result = await this.takeOffering(message.name || "a phone", message)
         const closed = this.version !== before
-        if (closed) this.broadcast(await this.full("round", true))
+        if (closed) this.broadcast(await this.full("round", false))
         else this.broadcast(await this.full("pulse"))
         return { accepted: closed, version: this.version, reason: result.reason, weightsB64: closed ? this.weightsB64 : "" }
     }
@@ -223,10 +223,10 @@ export class Orca extends Actor<Metadata, Incoming, RoomView> {
         const before = this.version
         const result = await this.takeOffering(socket.metadata.name || "a phone", message, socket)
         if (!result.accepted) {
-            socket.send(await this.full("reject", true, { reason: result.reason }))
+            socket.send(await this.full("reject", false, { reason: result.reason }))
             return
         }
-        if (this.version !== before) this.broadcast(await this.full("round", true))
+        if (this.version !== before) this.broadcast(await this.full("round", false))
         else this.broadcast(await this.full("pulse"))
     }
 
