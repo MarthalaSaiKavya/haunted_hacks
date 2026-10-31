@@ -139,6 +139,8 @@ let turn = 0;
 let iSent = false;
 let myLosses = [];
 let phase = 'loss';
+let latestWeights = '';
+let sentForVersion = -1;
 
 function setPhase(next) {
   phase = next;
@@ -257,12 +259,13 @@ async function runLoop(initialWeights, device) {
       if (workerWs && workerWs.readyState === WebSocket.OPEN && event.step % 4 === 0) {
         workerWs.send(JSON.stringify({ type: 'progress', loss: event.loss, step: event.step }));
       }
-      if (submitPending) {
+      if (submitPending && sentForVersion !== version) {
         setPhase('send');
         $('status').textContent = 'Sending your change to Orca.';
         submitPending = false;
         const saved = await sendOffering();
         if (saved) {
+          latestWeights = saved;
           abortFlag = true;
           return saved;
         }
@@ -288,6 +291,7 @@ async function sendOffering() {
     const response = await fetch('/publish', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
+      signal: AbortSignal.timeout(20000),
       body: JSON.stringify({
         name: myName,
         deltaB64: encodeF32(delta),
@@ -317,6 +321,7 @@ async function sendOffering() {
     return '';
   }
   iSent = true;
+  sentForVersion = version;
   $('contrib').textContent = `You sent a change from version ${version}. Your guesses scored ${loss.toFixed(2)} across ${roundTokens} pieces.`;
   $('last').textContent = `Orca saved your change. The shared model is now version ${result.version}.`;
   version = result.version;
@@ -355,7 +360,9 @@ async function startTraining(weightsB64) {
         throw error;
       }
     }
-    if (!abortFlag && mine === turn) $('status').textContent = 'Waiting for the next round.';
+    if (!abortFlag && mine === turn) {
+      $('status').textContent = 'This phone will guess again on the next clock.';
+    }
   } catch (error) {
     if (mine !== turn) return;
     $('status').textContent = 'This phone stopped.';
@@ -415,8 +422,12 @@ async function connect() {
       iSent = false;
     }
     applyMeta(msg);
-    if (msg.type === 'hello' || msg.type === 'round') startTraining(msg.weightsB64 || '');
-    if (msg.type === 'submit') submitPending = true;
+    if ((msg.type === 'hello' || msg.type === 'round') && msg.weightsB64) latestWeights = msg.weightsB64;
+    if (msg.type === 'hello' || msg.type === 'round') startTraining(msg.weightsB64 || latestWeights);
+    if (msg.type === 'submit') {
+      submitPending = true;
+      if (!running && latestWeights) startTraining(latestWeights);
+    }
   };
   ws.onclose = () => {
     $('status').textContent = 'The connection dropped. Rejoining.';
@@ -434,6 +445,9 @@ $('leave').onclick = () => {
 
 connect();
 draw();
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN && !running && latestWeights) startTraining(latestWeights);
+}, 4000);
 </script>
 </body>
 </html>
