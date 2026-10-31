@@ -14,7 +14,7 @@ const QUORUM = 1
 
 type LossPoint = { version: number; avgLoss: number }
 type Note = { at: number; from: string; text: string; versionMark?: number }
-type Spirit = { id: string; name: string }
+type Seat = { id: string; name: string }
 type Offering = { delta: Float32Array; tokens: number; loss: number }
 type Metadata = { name: string }
 type Incoming =
@@ -29,7 +29,7 @@ type RoomView = {
     lossHistory: LossPoint[]
     avgLoss: number | null
     messages: Note[]
-    clients: Spirit[]
+    clients: Seat[]
     deadlineMs: number
     submissions: number
     quorum: number
@@ -261,3 +261,74 @@ export class TrainingRoom extends Actor<Metadata, Incoming, RoomView> {
 }
 
 type Socket = ActorSocket<Metadata, RoomView>
+
+// One actor per phone. The id is that phone's saved id, not "hall".
+// It remembers this phone's last step and last weights. It does not average the shared model.
+type SpiritIncoming =
+    | { type: "progress"; loss: number; step: number }
+    | { type: "checkpoint"; weightsB64: string; loss: number; step: number }
+
+type SpiritView = {
+    type: "spirit"
+    spiritId: string
+    name: string
+    lastLoss: number | null
+    lastStep: number
+    roundsSent: number
+    hasWeights: boolean
+}
+
+export class Spirit extends Actor<Metadata, SpiritIncoming, SpiritView> {
+    @Persisted name = ""
+    @Persisted lastLoss: number | null = null
+    @Persisted lastStep = 0
+    @Persisted roundsSent = 0
+    @Persisted lastWeightsB64 = ""
+
+    // What this phone last saved. Used when it reconnects.
+    async snapshot(): Promise<SpiritView> {
+        return await this.card()
+    }
+
+    // A phone opened its own actor. Tell it the step and loss from last time.
+    async onConnect(socket: ActorSocket<Metadata, SpiritView>): Promise<void> {
+        if (socket.metadata.name) this.name = socket.metadata.name
+        socket.send(await this.card())
+    }
+
+    // Either a live step, or the weights at the end of a round.
+    async onMessage(socket: ActorSocket<Metadata, SpiritView>, message: SpiritIncoming): Promise<void> {
+        switch (message.type) {
+            case "progress":
+                if (typeof message.loss !== "number" || !(message.step >= 0)) return
+                this.lastLoss = message.loss
+                this.lastStep = message.step
+                socket.send(await this.card())
+                return
+            case "checkpoint":
+                if (!message.weightsB64 || typeof message.loss !== "number") return
+                this.lastWeightsB64 = message.weightsB64
+                this.lastLoss = message.loss
+                this.lastStep = message.step
+                this.roundsSent += 1
+                socket.send(await this.card())
+                return
+            default: {
+                const unreachable: never = message
+                throw new Error(`unknown spirit message ${JSON.stringify(unreachable)}`)
+            }
+        }
+    }
+
+    private async card(): Promise<SpiritView> {
+        return {
+            type: "spirit",
+            spiritId: this.id,
+            name: this.name,
+            lastLoss: this.lastLoss,
+            lastStep: this.lastStep,
+            roundsSent: this.roundsSent,
+            hasWeights: this.lastWeightsB64.length > 0,
+        }
+    }
+}

@@ -23,9 +23,24 @@ export type {
 /**
  * Types for actor state and socket messages.
  * @example
- * type State = actors.TrainingRoom.State
+ * type State = actors.Spirit.State
  */
 export declare namespace actors {
+    namespace Spirit {
+        type Metadata = $ActorTypes["Spirit"]["Metadata"]
+        type Incoming = $ActorTypes["Spirit"]["Incoming"]
+        type Outgoing = $ActorTypes["Spirit"]["Outgoing"]
+        type State = $ActorTypes["Spirit"]["State"]
+        interface Authorization {
+            actorName: "Spirit"
+            actorId: string
+            metadata: Metadata
+            clientLocation?: {
+                latitude: number
+                longitude: number
+            }
+        }
+    }
     namespace TrainingRoom {
         type Metadata = $ActorTypes["TrainingRoom"]["Metadata"]
         type Incoming = $ActorTypes["TrainingRoom"]["Incoming"]
@@ -45,9 +60,31 @@ export declare namespace actors {
 /**
  * Types for actor state and methods.
  * @example
- * type State = actors.TrainingRoom.State
+ * type State = actors.Spirit.State
  */
 export declare namespace actors {
+    namespace Spirit {
+        type Stub = $ActorTypes["Spirit"]["Methods"]
+        interface $MethodTypes {
+            ["snapshot"]: {
+                Args: Parameters<Stub["snapshot"]>
+                Result: Awaited<ReturnType<Stub["snapshot"]>>
+            }
+        }
+        interface Methods extends $MethodTypes {}
+        /**
+         * Types for a method's arguments and return value.
+         * @example
+         * type Args = actors.Spirit.Methods["snapshot"]["Args"]
+         * type Result = actors.Spirit.Methods["snapshot"]["Result"]
+         */
+        namespace Methods {
+            namespace snapshot {
+                type Args = $MethodTypes["snapshot"]["Args"]
+                type Result = $MethodTypes["snapshot"]["Result"]
+            }
+        }
+    }
     namespace TrainingRoom {
         type Stub = $ActorTypes["TrainingRoom"]["Methods"]
         interface $MethodTypes {
@@ -90,9 +127,22 @@ export declare namespace actors {
 /**
  * Call actor methods from your backend.
  * @example
- * const actor = actors.TrainingRoom.get("actor-id")
+ * const actor = actors.Spirit.get("actor-id")
  */
 export declare const actors: {
+    Spirit: {
+        get(actorId: string, transport?: import("./runtime/index.js").ActorRpcTransport): actors.Spirit.Stub
+        /**
+         * Allow a frontend connection after your backend checks the user's access.
+         * @example
+         * const grant = await actors.Spirit.prepareWebsocket({ actorId: "actor-id", metadata })
+         */
+        prepareWebsocket(
+            authorization: Omit<actors.Spirit.Authorization, "actorName">,
+            options?: import("./runtime/index.js").SocketProxyOptions,
+            dependencies?: import("./runtime/index.js").SocketProxyDependencies
+        ): Promise<import("./runtime/index.js").SocketGrant>
+    }
     TrainingRoom: {
         get(actorId: string, transport?: import("./runtime/index.js").ActorRpcTransport): actors.TrainingRoom.Stub
         /**
@@ -110,15 +160,16 @@ export declare const actors: {
 /**
  * The actor and connection details approved by your backend.
  * @example
- * const authorization: ActorAuthorization = { actorName: "TrainingRoom", actorId: "actor-id", metadata }
+ * const authorization: ActorAuthorization = { actorName: "Spirit", actorId: "actor-id", metadata }
  */
-export type ActorAuthorization = actors.TrainingRoom.Authorization
+export type ActorAuthorization = actors.Spirit.Authorization | actors.TrainingRoom.Authorization
 /**
  * Allow a frontend connection after your backend checks the user's access.
  * @example
- * const grant = await ActorProxy.handle({ actorName: "TrainingRoom", actorId: "actor-id", metadata })
+ * const grant = await ActorProxy.handle({ actorName: "Spirit", actorId: "actor-id", metadata })
  */
 export declare class ActorProxy extends $SocketProxy<{
+    ["Spirit"]: import("./runtime/index.js").ProxyActor<actors.Spirit.Metadata>
     ["TrainingRoom"]: import("./runtime/index.js").ProxyActor<actors.TrainingRoom.Metadata>
 }> {
     constructor(

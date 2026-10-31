@@ -199,19 +199,28 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
 
   if (req.method === 'POST' && url.pathname === '/grant') {
     let name = 'spirit';
+    let spiritId = '';
     try {
       const body = await req.json();
       name = String(body.name ?? 'spirit').trim().slice(0, 32) || 'spirit';
+      spiritId = String(body.spiritId ?? '');
     } catch {
-      // keep the default name
+      // keep the defaults
     }
-    const grant = await actors.TrainingRoom.prepareWebsocket({
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(spiritId)) spiritId = crypto.randomUUID();
+    const hallGrant = await actors.TrainingRoom.prepareWebsocket({
       actorId: ACTOR_ID,
       metadata: { name },
     });
+    const spiritGrant = await actors.Spirit.prepareWebsocket({
+      actorId: spiritId,
+      metadata: { name },
+    });
     const ticket = crypto.randomUUID();
-    tickets.set(ticket, grant.websocketUrl);
-    return Response.json({ ticket }, { headers: { 'cache-control': 'no-store' } });
+    const spiritTicket = crypto.randomUUID();
+    tickets.set(ticket, hallGrant.websocketUrl);
+    tickets.set(spiritTicket, spiritGrant.websocketUrl);
+    return Response.json({ ticket, spiritTicket, spiritId }, { headers: { 'cache-control': 'no-store' } });
   }
 
   if (url.pathname === '/health' || url.pathname === '/rooms') {
