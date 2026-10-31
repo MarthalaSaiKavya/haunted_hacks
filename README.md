@@ -4,7 +4,11 @@ Phones train one tiny Shakespeare model. **Orca** keeps the shared weights. When
 
 Marthala Sai Kavya · Haunted Hacks
 
-Open the main screen at `/`. Phones join at `/join`. The two-slide intro is at `/intro`.
+This is the screen. Phones join with the QR. The ring is the shared loss. The chart is every version so far. Under that, the Watcher tells the Voice the loss, and the Voice answers.
+
+![Orca, the shared screen. Version 993, loss 3.99, one phone guessing. The Voice continues: to better these cannot by.](docs/orca.png)
+
+The two-slide intro is at `/intro`.
 
 ## The picture
 
@@ -16,7 +20,7 @@ flowchart LR
   end
 
   P1 -->|only the change in the weights| Orca
-  P2 -.->|no second model while demo is in the room| Orca
+  P2 -.->|stay connected| Orca
 
   subgraph actors [Durable actors]
     Orca[Orca\none shared model]
@@ -114,21 +118,23 @@ What each one does:
 
 The conversation is one Agent Relay flow, `seance/relay/flows/round-closed.flow.ts`. It runs once per closed version. It does not train, and it does not change the version. The two messages show on the main screen under **Watcher to Voice**.
 
+On the screen above, that exchange is already filled in:
+
 ```text
-Watcher    Version 12 closed. Mean loss 2.440. Continue from "to be".
-Voice      It continues: to be …
+Watcher    Version 992 closed. Mean loss 3.991. Continue from "to be".
+Voice      It continues: to better these cannot by.
 ```
+
+Version 992 was moved by the phone on the ring. Orca saved that and opened version 993. Loss started near 6.9 and is now 3.99.
 
 ## What you see
 
 ```text
-Main screen  /        the shared version, the loss, the phones, the agents
-Join         /join    a phone. It guesses, then sends only its change
+Main screen  /        the picture above
+Join         /join    the QR on that screen
 Intro        /intro   two slides. Right arrow moves forward
 Frames       /frames  phone-sized copies for a recording. Not linked from Orca
 ```
-
-The phone named **demo** is the one guessing on this machine, so the round keeps moving. Other phones stay on the board and do not start a second model while demo is in the room.
 
 ## Run it
 
@@ -143,7 +149,7 @@ In another terminal, from the repo root:
 deno run --allow-net --allow-read --allow-write --allow-env --allow-run seance/server.js
 ```
 
-And the phone that keeps the demo moving:
+And the phone that keeps the round moving:
 
 ```bash
 deno run --config seance/deno.json --allow-net --allow-read --allow-write seance/demo-phone.js
