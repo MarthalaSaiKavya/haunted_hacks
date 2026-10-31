@@ -330,49 +330,6 @@ async function sendOffering() {
   return result.weightsB64 || '';
 }
 
-async function startTraining(weightsB64) {
-  const mine = ++turn;
-  if (running) abortFlag = true;
-  while (running) await new Promise((resolve) => setTimeout(resolve, 40));
-  if (mine !== turn) return;
-  running = true;
-  abortFlag = false;
-  iSent = false;
-  const weights = decodeF32(weightsB64);
-  try {
-    let device = 'wasm';
-    try {
-      device = await ensureBackend();
-      if (mine !== turn) return;
-      let next = await runLoop(weights, device);
-      while (next && mine === turn) {
-        weights = decodeF32(next);
-        abortFlag = false;
-        iSent = false;
-        next = await runLoop(weights, device);
-      }
-    } catch (error) {
-      if (mine !== turn) return;
-      if (device !== 'cpu') {
-        $('status').textContent = 'The fast engine failed. Retrying slowly.';
-        abortFlag = false;
-        await runLoop(weights, 'cpu');
-      } else {
-        throw error;
-      }
-    }
-    if (!abortFlag && mine === turn) {
-      $('status').textContent = 'This phone will guess again on the next clock.';
-    }
-  } catch (error) {
-    if (mine !== turn) return;
-    $('status').textContent = 'This phone stopped.';
-    $('error').textContent = error instanceof Error ? error.message : String(error);
-  } finally {
-    running = false;
-  }
-}
-
 async function loadWeights() {
   if (loadingWeights) return;
   loadingWeights = true;
@@ -381,13 +338,49 @@ async function loadWeights() {
     if (!response.ok) return;
     const body = await response.json();
     if (body.version != null) version = body.version;
-    if (!body.weightsB64) return;
-    latestWeights = body.weightsB64;
-    if (!running) startTraining(latestWeights);
+    if (body.weightsB64) latestWeights = body.weightsB64;
   } catch {
     // The next tick tries again. The socket hello is too big to rely on.
   } finally {
     loadingWeights = false;
+  }
+}
+
+let supervisor = null;
+let deviceName = '';
+
+function kick() {
+  if (supervisor) return;
+  supervisor = supervise().finally(() => { supervisor = null; });
+}
+
+async function supervise() {
+  if (!deviceName) {
+    try { deviceName = await ensureBackend(); }
+    catch { deviceName = 'cpu'; }
+  }
+  while (ws && ws.readyState === WebSocket.OPEN) {
+    if (!latestWeights) {
+      await loadWeights();
+      if (!latestWeights) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+    }
+    abortFlag = false;
+    try {
+      const next = await runLoop(decodeF32(latestWeights), deviceName);
+      if (next) latestWeights = next;
+    } catch (error) {
+      if (deviceName !== 'cpu') {
+        deviceName = 'cpu';
+        $('status').textContent = 'The fast engine failed. Retrying slowly.';
+        continue;
+      }
+      $('status').textContent = 'This phone will guess again.';
+      $('error').textContent = error instanceof Error ? error.message : String(error);
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
   }
 }
 
@@ -425,7 +418,7 @@ async function connect() {
   ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
   ws.onopen = () => {
     $('status').textContent = 'Connected. Loading the shared weights.';
-    loadWeights();
+    loadWeights().then(() => kick());
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
@@ -435,8 +428,9 @@ async function connect() {
       $('error').textContent = '';
       $('last').textContent = `Orca had already moved on. ${msg.reason || 'Your change was not added.'} You are starting from the new copy.`;
       setPhase('read');
-      if (msg.weightsB64) startTraining(msg.weightsB64);
+      if (msg.weightsB64) latestWeights = msg.weightsB64;
       applyMeta(msg);
+      kick();
       return;
     }
     if (msg.type === 'round' && iSent) {
@@ -445,10 +439,14 @@ async function connect() {
     }
     applyMeta(msg);
     if ((msg.type === 'hello' || msg.type === 'round') && msg.weightsB64) latestWeights = msg.weightsB64;
-    if (msg.type === 'hello' || msg.type === 'round') startTraining(msg.weightsB64 || latestWeights);
+    if (msg.type === 'hello' || msg.type === 'round') {
+      sentForVersion = -1;
+      if (!msg.weightsB64) loadWeights();
+      kick();
+    }
     if (msg.type === 'submit') {
       submitPending = true;
-      if (!running && latestWeights) startTraining(latestWeights);
+      kick();
     }
   };
   ws.onclose = () => {
@@ -469,8 +467,8 @@ connect();
 draw();
 setInterval(() => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (!latestWeights) loadWeights();
-  else if (!running) startTraining(latestWeights);
+  if (!latestWeights) loadWeights().then(() => kick());
+  else if (!supervisor) kick();
 }, 4000);
 </script>
 </body>

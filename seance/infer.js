@@ -38,12 +38,14 @@ function loadWeights(flat, templateParams) {
   }, templateParams);
 }
 
-// Ask the saved weights to continue a prompt. speak(weights, "to be") might return "to be or not".
-export async function speak(flat, prompt) {
+// Ask the saved weights to continue a prompt. speak(weights, "to be", version) uses
+// that version as the sample seed, so two saves do not print the same line.
+export async function speak(flat, prompt, seed = 7) {
   const { tokenizer, cfg } = await prepare();
-  const fresh = await initParams(tokenizer.vocabSize, cfg, random.key(7));
+  const salt = Number.isFinite(Number(seed)) ? (Math.abs(Number(seed)) % 100000) + 1 : 7;
+  const fresh = await initParams(tokenizer.vocabSize, cfg, random.key(salt));
   const params = loadWeights(flat, fresh);
-  const samples = await inference(params, cfg, tokenizer, random.key(11), {
+  const samples = await inference(params, cfg, tokenizer, random.key(salt + 11), {
     prompt,
     numSamples: 1,
     temperature: 0.8,

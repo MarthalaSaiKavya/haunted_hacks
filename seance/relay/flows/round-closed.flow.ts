@@ -25,7 +25,7 @@ export default flow<Round>("seance-round", async (f, input) => {
     { timeout: "30s" },
   );
   const spoken = await f.run(
-    `${sh(input.denoBin)} run --allow-read --allow-env --allow-net ${sh(input.speakScript)} ${sh(input.weightsPath)}`,
+    `${sh(input.denoBin)} run --allow-read --allow-env --allow-net ${sh(input.speakScript)} ${sh(input.weightsPath)} ${String(input.version)}`,
     { timeout: "3m" },
   );
   const reply = `It continues: ${spoken.trim().split("\n").at(-1) ?? ""}`;
