@@ -826,12 +826,16 @@ let submitPending = false;
 let roundStartFlat = null;    // flat weights at start of current round
 let trainingHandle = {};      // shared with train() to read live flat weights
 
-// In production, nginx proxies /train and /ws from the same origin (port 7011).
-// In local dev, the Deno server runs separately on localhost:4000.
-const _dev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-const SERVER    = _dev ? 'http://localhost:4000' : location.origin;
-const SERVER_WS = _dev ? 'ws://localhost:4000/ws'
-                       : (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host + '/ws';
+// Production (https, or nginx on 80/443/7011) proxies /train and /ws on this origin.
+// A local static server on any other port talks to the Deno server on :4000
+// of the same host, so a phone can open http://<laptop-ip>:<port>/ and join.
+const _port = location.port;
+const _proxied = location.protocol === 'https:' || _port === '' || _port === '80' || _port === '443' || _port === '7011';
+const _apiHost = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'localhost' : location.hostname;
+const SERVER    = _proxied ? location.origin : `http://${_apiHost}:4000`;
+const SERVER_WS = _proxied
+  ? ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws')
+  : `ws://${_apiHost}:4000/ws`;
 const DEFAULT_ROUND_SECS = 15;   // sync interval — round duration in seconds
 const DEFAULT_GRACE_SECS = 3;    // grace period before round closes
 
