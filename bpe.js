@@ -7,6 +7,7 @@ const decoder = new TextDecoder();
 // --- BPE Training ---
 // Learns `numMerges` merge rules from raw bytes.
 // Returns array of [tokenA, tokenB] pairs in merge order.
+// Learn merge rules. "th" appearing often becomes one token. Returns the merge list.
 export function trainBPE(textBytes, numMerges, verbose = true) {
   let ids = Array.from(textBytes);
   const originalLen = ids.length;
@@ -48,6 +49,8 @@ export function trainBPE(textBytes, numMerges, verbose = true) {
 }
 
 // --- Build tokenizer from merges ---
+// Turn a saved merge list into encode and decode.
+// encode("to be") adds a start token and an end token around the pieces.
 export function buildBPETokenizer(merges) {
   const BOS = 256 + merges.length;
   const EOS = BOS + 1;
@@ -94,6 +97,7 @@ export function buildBPETokenizer(merges) {
   return { encode, decode, BOS, EOS, vocabSize, merges, vocab };
 }
 
+// Replace every side-by-side pair (a, b) with one new id. Left to right, no overlap.
 function applyMerge(ids, a, b, newId) {
   const out = [];
   let i = 0;

@@ -1,5 +1,9 @@
+// Tiny check for applyAverage. Run with: deno run seance/average_test.js
+// First case starts from zeros. Second case adds onto [10, 10].
+
 import { applyAverage } from './average.js';
 
+// Fail the script if any number is more than a millionth away from the expected value.
 function assertClose(actual, expected) {
   if (actual.length !== expected.length) throw new Error(`length ${actual.length} != ${expected.length}`);
   for (let i = 0; i < actual.length; i++) {

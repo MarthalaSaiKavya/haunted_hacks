@@ -29,10 +29,12 @@ const asked = new Set();
 const relayBin = new URL('./relay/node_modules/.bin/agent-relay', import.meta.url).pathname;
 const relayCwd = new URL('./relay/', import.meta.url).pathname;
 
+// The one room every phone shares. The id "hall" is the actor's name.
 function room() {
   return actors.TrainingRoom.get(ACTOR_ID);
 }
 
+// If an older file has a higher version than the actor, copy it in once.
 async function seedFromDisk() {
   let saved;
   try {
@@ -51,6 +53,8 @@ async function seedFromDisk() {
   console.log(`actor hall is on version ${version}`);
 }
 
+// Run one Agent Relay command and return its JSON.
+// Example: relay(['message','dm','send','voice','hello','--as','watcher'])
 async function relay(args) {
   const proc = new Deno.Command(relayBin, {
     args,
@@ -66,6 +70,7 @@ async function relay(args) {
   return start === -1 ? text : JSON.parse(text.slice(start));
 }
 
+// After a new round, the Watcher DMs the Voice the real mean loss. Once per version.
 async function watcherStep(snap) {
   const last = snap.lossHistory.at(-1);
   if (!last || !snap.weightsB64) return;
@@ -76,6 +81,7 @@ async function watcherStep(snap) {
   asked.add(last.version);
 }
 
+// The Voice reads the Watcher's DM, runs the saved model, and DMs the line back.
 async function voiceStep() {
   const inbox = await relay(['message', 'inbox', 'check', '--as', 'voice']);
   for (const dm of inbox.unreadDms ?? []) {
@@ -109,6 +115,7 @@ async function voiceStep() {
   }
 }
 
+// Once a second: let the Watcher speak, then let the Voice answer. Never overlap.
 async function exchange() {
   if (voiceBusy) return;
   voiceBusy = true;
@@ -121,12 +128,14 @@ async function exchange() {
   }
 }
 
+// Join a URL onto a folder and refuse anything that escapes that folder.
 function safeFile(base, requestPath) {
   const url = new URL(`.${requestPath}`, base);
   if (!url.pathname.startsWith(base.pathname)) return null;
   return url;
 }
 
+// Read one file from disk and send it to the browser. Missing file is a 404.
 function serveFile(url) {
   try {
     const bytes = Deno.readFileSync(url);
@@ -143,6 +152,7 @@ function serveFile(url) {
   }
 }
 
+// The actor's socket is on this machine. Copy bytes both ways so a phone can use it.
 function proxyActorSocket(req, upstreamUrl) {
   const { socket, response } = Deno.upgradeWebSocket(req);
   const upstream = new WebSocket(upstreamUrl);

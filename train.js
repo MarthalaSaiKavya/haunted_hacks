@@ -10,6 +10,7 @@ import { buildBPETokenizer } from './bpe.js';
 export { MODEL_CONFIGS, buildBPETokenizer };
 
 // --- Seeded RNG (for batch sampling — JS side) ---
+// A tiny repeatable dice roll, used only to pick which window of text to train on.
 function mulberry32(seed) {
   return function () {
     seed |= 0; seed = seed + 0x6D2B79F5 | 0;
@@ -20,6 +21,7 @@ function mulberry32(seed) {
 }
 
 // --- LR schedule: warmup -> constant -> linear decay ---
+// Learning-rate shape: warm up, stay flat, then fade. A short run fades early.
 function lrMultiplier(step, totalSteps) {
   const warmup = Math.min(10, Math.floor(totalSteps * 0.1));
   const decayStart = Math.floor(totalSteps * 0.6);
@@ -29,6 +31,7 @@ function lrMultiplier(step, totalSteps) {
 }
 
 // --- Weight serialization helpers ---
+// Copy every weight into one long list, in a fixed order, so it can be sent to the room.
 function flattenParams(params) {
   // tree.leaves() moves (consumes) the leaves — ref first so the original params stay alive
   const leaves = tree.leaves(tree.ref(params));
@@ -43,6 +46,7 @@ function flattenParams(params) {
   return out;
 }
 
+// Put that long list back into a model of the same shape.
 function loadWeights(flat, templateParams) {
   let offset = 0;
   return tree.map(leaf => {
@@ -55,6 +59,7 @@ function loadWeights(flat, templateParams) {
 }
 
 // --- Sample a batch of random windows from token data ---
+// Cut random stretches of tokens. The target is the same stretch shifted one token ahead.
 function sampleBatch(tokenData, batchSize, blockSize, rng) {
   const maxStart = tokenData.length - blockSize - 1;
   const inputBuf = new Int32Array(batchSize * blockSize);
@@ -74,6 +79,8 @@ function sampleBatch(tokenData, batchSize, blockSize, rng) {
 // --- Training generator ---
 // trainData/valData: Uint16Array of pre-tokenized tokens
 // tokenizer: { encode, decode, vocabSize, BOS, EOS } from buildBPETokenizer
+// The training loop. Yields init, then one event per step, then done.
+// Each step: guess, measure loss, nudge every weight with Adam.
 export async function* train(backendName, trainData, valData, tokenizer, opts = {}) {
   const modelName = opts.model ?? 'nano';
   const cfg = resolveConfig(modelName);
@@ -190,6 +197,7 @@ export async function* train(backendName, trainData, valData, tokenizer, opts = 
 }
 
 // --- CLI entry point ---
+// Command-line entry. The browser imports train() and does not run this.
 async function main() {
   const isDeno = typeof Deno !== 'undefined';
   const args = isDeno ? Deno.args : process.argv.slice(2);

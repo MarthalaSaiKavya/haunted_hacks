@@ -4,12 +4,14 @@
 import { init, defaultDevice, numpy as np, nn, grad, random, tree, blockUntilReady } from '@jax-js/jax';
 
 // --- Utilities ---
+// Largest absolute gap between two lists of numbers.
 function maxAbsError(a, b) {
   let maxErr = 0;
   for (let i = 0; i < a.length; i++) maxErr = Math.max(maxErr, Math.abs(a[i] - b[i]));
   return maxErr;
 }
 
+// Largest gap relative to the size of the numbers. Used for gradient checks.
 function relError(a, b) {
   let maxRel = 0;
   for (let i = 0; i < a.length; i++) {
@@ -19,6 +21,7 @@ function relError(a, b) {
   return maxRel;
 }
 
+// Average milliseconds for a function, after a few warm-up calls.
 async function timeIt(fn, warmup = 10, runs = 100) {
   for (let i = 0; i < warmup; i++) await fn();
   const times = [];
@@ -34,6 +37,7 @@ function pass(name) { console.log(`  ✓ ${name}`); }
 function fail(name, detail) { console.log(`  ✗ ${name}: ${detail}`); }
 
 // --- Gradient checking via finite differences ---
+// Compare jax's gradient with a hand nudge of 0.0001. They should be close.
 async function finiteDiffCheck(opFn, inputShapes, eps = 1e-4) {
   const rngKey = random.key(123);
   const keys = random.split(rngKey, inputShapes.length);
@@ -87,6 +91,7 @@ async function finiteDiffCheck(opFn, inputShapes, eps = 1e-4) {
 }
 
 // --- Correctness Tests ---
+// Check matmul, relu, softmax, loss, and their gradients against known answers.
 async function runCorrectnessTests() {
   console.log('\n=== Correctness Tests ===\n');
 
@@ -228,6 +233,7 @@ async function runCorrectnessTests() {
 }
 
 // --- Op-level benchmarks ---
+// Time a few tensor ops at small sizes.
 async function runBenchmarks() {
   const device = defaultDevice();
   console.log(`\n=== Op-level Benchmarks (${device}) ===\n`);
@@ -266,6 +272,7 @@ async function runBenchmarks() {
 }
 
 // --- End-to-end training benchmark ---
+// Run 10 nano steps and print whether the loss went down.
 async function runTrainingBench(backendName, trainData, valData, tokenizer, steps = 10) {
   console.log(`\n=== Training Benchmark (${backendName}, ${steps} steps) ===\n`);
   const { train } = await import('./train.js');
@@ -288,6 +295,7 @@ async function runTrainingBench(backendName, trainData, valData, tokenizer, step
 }
 
 // --- File reading ---
+// Read a text file in Deno or Node.
 async function readTextFile(path) {
   if (typeof Deno !== 'undefined') {
     return Deno.readTextFileSync(path);
@@ -297,6 +305,7 @@ async function readTextFile(path) {
 }
 
 // --- Main ---
+// Run the CPU checks, and the GPU checks only when --gpu is passed.
 async function main() {
   const args = typeof Deno !== 'undefined' ? Deno.args : process.argv.slice(2);
   const runCPU = args.includes('--cpu') || args.includes('--all') || args.length === 0;

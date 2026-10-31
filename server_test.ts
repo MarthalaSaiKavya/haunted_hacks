@@ -1,4 +1,9 @@
-// E2E tests for the distributed training coordination server (server.ts).
+// End-to-end tests for server.ts, the original in-memory coordinator.
+// They start that server, open fake browsers over WebSocket, and check:
+// creating a session, joins, the weight average, a late joiner, a round that
+// ends on the timer, rejected publishes, grace period, several rounds,
+// client ids, the device list, delete, and bad messages.
+// The séance room does not use this file. It uses seance/hall instead.
 // Run: deno test --allow-net --allow-read --allow-run server_test.ts
 
 import {

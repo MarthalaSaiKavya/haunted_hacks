@@ -591,12 +591,14 @@ $('tog-gpu').onclick = () => {
 };
 
 // --- Utilities ---
+// Largest absolute gap between two number lists.
 function maxAbsError(a, b) {
   let maxErr = 0;
   for (let i = 0; i < a.length; i++) maxErr = Math.max(maxErr, Math.abs(a[i] - b[i]));
   return maxErr;
 }
 
+// Largest relative gap. Used to judge gradient checks.
 function relError(a, b) {
   let maxRel = 0;
   for (let i = 0; i < a.length; i++) {
@@ -606,6 +608,7 @@ function relError(a, b) {
   return maxRel;
 }
 
+// Average milliseconds after a few warm-up runs.
 async function timeIt(fn, warmup = 5, runs = 100) {
   for (let i = 0; i < warmup; i++) await fn();
   const times = [];
@@ -617,6 +620,7 @@ async function timeIt(fn, warmup = 5, runs = 100) {
   return times.reduce((a, b) => a + b) / times.length;
 }
 
+// Add one pass or fail row to a section on the page.
 function addTestRow(containerId, name, status, detail) {
   const container = $(containerId);
   // Clear empty placeholder
@@ -647,6 +651,7 @@ function addTestRow(containerId, name, status, detail) {
   return row;
 }
 
+// Refresh the pass and fail counters.
 function updateSummary() {
   $('summary').style.display = 'flex';
   $('sum-pass').textContent = passCount;
@@ -654,10 +659,12 @@ function updateSummary() {
   $('sum-total').textContent = passCount + failCount;
 }
 
+// Make text safe to drop into HTML.
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// Lock or unlock the run buttons while a suite is going.
 function setButtons(disabled) {
   running = disabled;
   $('btn-run').disabled = disabled;
@@ -667,6 +674,7 @@ function setButtons(disabled) {
   $('tog-gpu').disabled = disabled || !hasWebGPU;
 }
 
+// Clear the counters and the progress bar before a new run.
 function resetState() {
   passCount = 0;
   failCount = 0;
@@ -674,6 +682,7 @@ function resetState() {
   $('summary').style.display = 'none';
 }
 
+// Choose wasm or webgpu from the toggle and label the badge.
 function initBackend() {
   const device = selectedBackend === 'gpu' ? 'webgpu' : 'wasm';
   defaultDevice(device);
@@ -683,11 +692,13 @@ function initBackend() {
   return device;
 }
 
+// Let the browser paint between tests.
 async function yield_() {
   await new Promise(r => requestAnimationFrame(r));
 }
 
 // --- Finite diff check ---
+// Compare an automatic gradient with a hand nudge of 0.0001.
 async function finiteDiffCheck(opFn, inputShapes, eps = 1e-4) {
   const rngKey = random.key(123);
   const keys = random.split(rngKey, inputShapes.length);
@@ -736,6 +747,7 @@ async function finiteDiffCheck(opFn, inputShapes, eps = 1e-4) {
 }
 
 // --- Correctness Tests ---
+// Run the same math checks as bench.js and draw the rows.
 async function runCorrectnessTests() {
   $('correctness-body').innerHTML = '';
   $('gradient-body').innerHTML = '';
@@ -914,6 +926,7 @@ async function runCorrectnessTests() {
 }
 
 // --- Op-level Benchmarks ---
+// Time matmul, add, relu, and softmax, and add a row per size.
 async function runBenchmarks() {
   $('bench-body').innerHTML = `
     <table class="bench-table">
@@ -969,6 +982,7 @@ async function runBenchmarks() {
 }
 
 // --- Training Benchmark ---
+// Ten nano training steps on the names data. Reports if loss fell.
 async function runTrainingBench(backendName) {
   $('train-body').innerHTML = '<div class="section-empty">Running 10 training steps\u2026</div>';
   $('train-count').textContent = '';
@@ -1033,6 +1047,7 @@ async function runTrainingBench(backendName) {
 }
 
 // --- Runners ---
+// Correctness, then speed, then the short training bench.
 async function runAll() {
   resetState();
   setButtons(true);
@@ -1057,6 +1072,7 @@ async function runAll() {
   setButtons(false);
 }
 
+// Only the math checks.
 async function runCorrectnessOnly() {
   resetState();
   setButtons(true);
@@ -1072,6 +1088,7 @@ async function runCorrectnessOnly() {
   setButtons(false);
 }
 
+// Only the speed table.
 async function runBenchmarksOnly() {
   resetState();
   setButtons(true);

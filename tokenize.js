@@ -3,6 +3,7 @@
 
 import { trainBPE, buildBPETokenizer } from './bpe.js';
 
+// Read a text file, learn BPE, and write the tokenizer plus train/val token files.
 async function main() {
   const isDeno = typeof Deno !== 'undefined';
   const args = isDeno ? Deno.args : process.argv.slice(2);

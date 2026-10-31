@@ -12,6 +12,7 @@ export const MODEL_CONFIGS = {
   large:  { nLayer: 8, nEmbd: 512, blockSize: 256, nHead: 8, lr: 1e-4,  initStd: 0.01, steps: 500 },
 };
 
+// Pick a model size. "nano" is 1 layer and 16-wide. Unknown names throw.
 export function resolveConfig(name) {
   const cfg = MODEL_CONFIGS[name];
   if (!cfg) throw new Error(`Unknown model config: ${name}. Choose from: ${Object.keys(MODEL_CONFIGS).join(', ')}`);
@@ -20,6 +21,8 @@ export function resolveConfig(name) {
 
 // --- Parameter initialization ---
 // Weights stored as [inDim, outDim] — no transpose needed in forward pass
+// Make a fresh set of random weights. The last two matrices in each block start at zero,
+// so a new block adds nothing until training moves them.
 export async function initParams(vocabSize, cfg, rngKey) {
   const nEmbd = cfg.nEmbd;
   const s = Math.sqrt(3 / nEmbd);
@@ -52,6 +55,7 @@ export async function initParams(vocabSize, cfg, rngKey) {
 }
 
 // --- RMSNorm (no learnable params) ---
+// Scale a vector so its average square is about 1. No learned knob.
 function rmsnorm(x) {
   const ms = np.mean(np.square(x.ref), -1, { keepdims: true });
   return x.div(np.sqrt(ms.add(1e-5)));
@@ -63,6 +67,7 @@ function rmsnorm(x) {
 //   Batched:   [B, seqLen, vocabSize] and [B, seqLen, blockSize]
 // seqLen: sequence length (JS number, needed for reshape)
 // batched: whether input has a batch dimension (default false)
+// Read tokens, run each transformer block, return a score for every next-token guess.
 export function forward(params, cfg, tokenOH, posOH, seqLen, batched = false) {
   const headDim = cfg.nEmbd / cfg.nHead;
   const reshapeQKV = batched
@@ -113,6 +118,8 @@ export function forward(params, cfg, tokenOH, posOH, seqLen, batched = false) {
 // --- Loss function ---
 // tokenOH, posOH, targetOH: pre-computed oneHot matrices (outside valueAndGrad)
 // mask: optional [..., seqLen] binary mask (1 = real token, 0 = padding)
+// How surprised the model was. 0 would mean it always guessed the next token.
+// A fresh model on a 1024-word vocabulary starts near ln(1024), about 6.93.
 export function loss(params, cfg, tokenOH, posOH, targetOH, seqLen, mask, batched = false) {
   const logits = forward(params, cfg, tokenOH, posOH, seqLen, batched);
   const logprobs = nn.logSoftmax(logits, -1);
@@ -126,6 +133,7 @@ export function loss(params, cfg, tokenOH, posOH, targetOH, seqLen, mask, batche
 
 // --- Inference (sequential, no KV cache for simplicity) ---
 // opts.prompt: optional seed text to continue from
+// Write new tokens one at a time. inference(..., { prompt: "to be" }) continues that phrase.
 export async function inference(params, cfg, tokenizer, rngKey, opts = {}) {
   const temperature = opts.temperature ?? 0.5;
   const numSamples = opts.numSamples ?? 20;

@@ -1,3 +1,4 @@
+# The original in-memory coordinator. The séance demo uses seance/hall instead.
 FROM denoland/deno:2.2.0
 
 WORKDIR /app

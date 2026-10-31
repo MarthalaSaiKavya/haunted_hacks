@@ -35,16 +35,19 @@ type PublishPayload = {
 const sessions = new Map<string, TrainSession>();
 
 // 6-char base-36 ID — ~2 billion possibilities, plenty for concurrent sessions
+// A short id such as "MU0QYU" for a training session.
 function randomId(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// JSON to one socket, if it is still open.
 function send(ws: WebSocket, data: unknown) {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   }
 }
 
+// Tell every tab the current list of device names.
 function broadcastClientsChanged(session: TrainSession) {
   const clients = [...session.client_list.values()].map((c) => ({
     client_id: c.id,
@@ -58,6 +61,7 @@ function broadcastClientsChanged(session: TrainSession) {
   }
 }
 
+// Average the submitted changes by token count, save them, and broadcast the new weights.
 function tryCompleteRound(session: TrainSession) {
   const now = Date.now();
 
@@ -106,6 +110,7 @@ function tryCompleteRound(session: TrainSession) {
   }
 }
 
+// A browser joined. Send the current weights and remember its name.
 function handleJoin(ws: WebSocket, train_id: string, name: string) {
   const session = sessions.get(train_id);
   if (!session) {
@@ -142,6 +147,7 @@ function handleJoin(ws: WebSocket, train_id: string, name: string) {
   broadcastClientsChanged(session);
 }
 
+// Accept one browser's weight change if the version and length match.
 function handlePublish(ws: WebSocket, train_id: string, payload: PublishPayload) {
   const session = sessions.get(train_id);
 
@@ -186,6 +192,7 @@ function handlePublish(ws: WebSocket, train_id: string, payload: PublishPayload)
   }
 }
 
+// Token-weighted average of the latest loss ping from each connected browser.
 function broadcastLiveLoss(session: TrainSession) {
   if (session.live_losses.size === 0) return;
   let lossSum = 0, tokenSum = 0;
@@ -227,6 +234,7 @@ setInterval(() => {
 }, 250);
 
 // WebSocket handler
+// Route join, publish, and loss_ping. Anything else is an error message.
 function handleWebSocket(req: Request): Response {
   const { socket: ws, response } = Deno.upgradeWebSocket(req);
 

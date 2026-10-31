@@ -7,6 +7,7 @@ import { buildBPETokenizer } from '../bpe.js';
 
 let ready = null;
 
+// Load jax and the Shakespeare tokenizer once, then reuse them.
 function prepare() {
   if (!ready) {
     ready = (async () => {
@@ -25,6 +26,7 @@ function prepare() {
   return ready;
 }
 
+// Pour a flat list of numbers into a fresh model's boxes, in the same order they were saved.
 function loadWeights(flat, templateParams) {
   let offset = 0;
   return tree.map((leaf) => {
@@ -36,6 +38,7 @@ function loadWeights(flat, templateParams) {
   }, templateParams);
 }
 
+// Ask the saved weights to continue a prompt. speak(weights, "to be") might return "to be or not".
 export async function speak(flat, prompt) {
   const { tokenizer, cfg } = await prepare();
   const fresh = await initParams(tokenizer.vocabSize, cfg, random.key(7));

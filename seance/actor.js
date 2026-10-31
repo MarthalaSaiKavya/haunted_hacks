@@ -1,3 +1,5 @@
+// Earlier room, before the durable actor. server.js does not call this anymore.
+// Kept so the first version of the circle is still readable.
 // One training room. One id. Calls run one at a time.
 // Weights, version, loss, and the circle's speech are written to disk
 // before the call returns. Connected spirits are not durable: a restart
@@ -30,12 +32,14 @@ export function createRoom({ id, readState, writeState }) {
   };
   let chain = Promise.resolve();
 
+  // Run room changes in a line, so two phones cannot edit weights at once.
   function enqueue(fn) {
     const run = chain.then(fn, fn);
     chain = run.then(() => {}, () => {});
     return run;
   }
 
+  // Write version, weights, loss, and messages to seance/state/hall.json.
   function persist() {
     writeState({
       id: room.id,
@@ -47,11 +51,13 @@ export function createRoom({ id, readState, writeState }) {
     });
   }
 
+  // Mark the room busy, so the 10 second sleep timer starts over.
   function touch() {
     room.lastActive = Date.now();
     room.dormant = false;
   }
 
+  // Names of phones connected right now. Not saved across a restart.
   function clientList() {
     return [...room.clients.values()].map((client) => ({
       id: client.id,
@@ -60,6 +66,7 @@ export function createRoom({ id, readState, writeState }) {
     }));
   }
 
+  // The snapshot the page draws. includeWeights is true only when the phone needs the model.
   function view(includeWeights) {
     const last = room.lossHistory.at(-1);
     return {
@@ -78,11 +85,13 @@ export function createRoom({ id, readState, writeState }) {
     };
   }
 
+  // Append one transcript line and keep only the latest 40.
   function say(from, text) {
     room.messages.push({ at: Date.now(), from, text });
     if (room.messages.length > 40) room.messages.shift();
   }
 
+  // Average the offerings, store the mean loss, and start the next 12 second round.
   function finishRound(now) {
     if (room.offerings.length === 0) return false;
     const lossSum = room.offerings.reduce((sum, item) => sum + item.loss, 0);

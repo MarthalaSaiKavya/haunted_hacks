@@ -840,6 +840,7 @@ const DEFAULT_ROUND_SECS = 15;   // sync interval — round duration in seconds
 const DEFAULT_GRACE_SECS = 3;    // grace period before round closes
 
 // Auto-generate a memorable device name
+// A random label such as "sonic-moth" so two tabs are easy to tell apart.
 function randomDeviceName() {
   const adj = ['amber','azure','brave','calm','coral','crisp','cyber','delta','dusty','ember',
                 'faint','fleet','frost','ghost','green','indigo','iron','lunar','moss','neon',
@@ -911,6 +912,7 @@ $('tog-gpu').onclick = () => {
 };
 
 // --- Chart rendering ---
+// Draw this tab's train loss in green and validation loss in dashed red.
 function drawChart() {
   const dpr = window.devicePixelRatio || 1;
   const rect = chart.parentElement.getBoundingClientRect();
@@ -1015,6 +1017,7 @@ function drawChart() {
   }
 }
 
+// Grid lines and axis numbers behind the solo loss chart.
 function drawGrid(W, H, minY, maxY, minX, maxX, pad) {
   pad = pad || { top: 28, right: 16, bottom: 28, left: 48 };
   const plotW = W - pad.left - pad.right;
@@ -1055,6 +1058,7 @@ function drawGrid(W, H, minY, maxY, minX, maxX, pad) {
 }
 
 // --- UI update ---
+// 90000 becomes "1m 30s".
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
@@ -1062,6 +1066,7 @@ function formatTime(ms) {
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
 }
 
+// Put the latest step and loss into the stat boxes.
 function updateStats(data) {
   $('stat-step').textContent = `${data.step} / ${data.totalSteps}`;
   $('stat-loss').textContent = data.loss.toFixed(4);
@@ -1083,6 +1088,7 @@ function updateStats(data) {
   }
 }
 
+// Add a block of generated lines at the top of the sample list.
 function showSamples(samples, step) {
   const body = $('samples-body');
   if (!samples || samples.length === 0) return;
@@ -1113,6 +1119,7 @@ function showSamples(samples, step) {
   body.insertBefore(block, body.firstChild);
 }
 
+// Make text safe to drop into HTML.
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -1121,6 +1128,7 @@ function escHtml(s) {
 const sessChart = $('sess-chart');
 const sessCtx = sessChart.getContext('2d');
 
+// Draw the shared-session loss chart.
 function drawSessChart() {
   const dpr = window.devicePixelRatio || 1;
   const rect = sessChart.parentElement.getBoundingClientRect();
@@ -1193,6 +1201,7 @@ function drawSessChart() {
   sessCtx.shadowBlur = 0;
 }
 
+// Grid for the session chart. The bottom labels are round numbers.
 function drawSessGrid(W, H, minY, maxY, minX, maxX, pad) {
   pad = pad || { top: 28, right: 16, bottom: 28, left: 48 };
   const plotW = W - pad.left - pad.right;
@@ -1231,6 +1240,7 @@ function drawSessGrid(W, H, minY, maxY, minX, maxX, pad) {
 }
 
 // --- Session functions ---
+// Hide the lobby and show the session panel. The URL becomes ?session=ID.
 function enterSession(trainId) {
   currentTrainId = trainId;
   inSession = true;
@@ -1245,6 +1255,7 @@ function enterSession(trainId) {
   history.replaceState(null, '', `?session=${trainId}`);
 }
 
+// Close the socket and go back to solo training controls.
 function leaveSession() {
   if (ws) { ws.close(); ws = null; }
   clearInterval(countdownTimer); countdownTimer = null;
@@ -1271,6 +1282,7 @@ function leaveSession() {
   $('join-name').value = randomDeviceName();
 }
 
+// Open the coordination socket and start training from the weights it sends.
 async function connectWebSocket(trainId, name) {
   ws = new WebSocket(SERVER_WS);
   ws.onopen = () => {
@@ -1299,6 +1311,7 @@ async function connectWebSocket(trainId, name) {
   ws.onclose = ws.onerror = () => leaveSession();
 }
 
+// React to join ack, a new averaged model, the grace-period bell, and live loss.
 function handleWsMessage(msg) {
   if (msg.type === 'join_ack') {
     myClientId = msg.client_id;
@@ -1346,6 +1359,7 @@ function handleWsMessage(msg) {
   }
 }
 
+// Draw the list of browsers in this session.
 function renderDevices() {
   const list = $('devices-list');
   if (knownClients.length === 0) {
@@ -1364,6 +1378,7 @@ function renderDevices() {
   }).join('');
 }
 
+// "round ends in 4s", from the server's deadline.
 function updateCountdown() {
   if (!currentDeadlineMs) return;
   const remaining = Math.max(0, currentDeadlineMs - Date.now());
@@ -1371,11 +1386,13 @@ function updateCountdown() {
   $('sess-countdown').textContent = `round ends in ${s}s`;
 }
 
+// "1 / 2 submitted".
 function updateRoundStatus() {
   $('sess-round-status').textContent = `${currentSubmissions} / ${currentQuorum || '—'} submitted`;
 }
 
 // --- Federated training ---
+// Send this tab's weight change since the round started.
 function submitDelta() {
   if (!ws || roundSteps === 0 || ws.readyState !== WebSocket.OPEN) return;
   const currentFlat = trainingHandle.getFlat ? trainingHandle.getFlat() : null;
@@ -1403,6 +1420,7 @@ function submitDelta() {
   roundSteps = 0; roundLossSum = 0; roundTokens = 0;
 }
 
+// POST the training error text to /client-log so it can be read on the server.
 function reportClientError(device, err) {
   const message = (err && err.message) ? err.message : String(err);
   fetch('/client-log', {
@@ -1412,6 +1430,7 @@ function reportClientError(device, err) {
   }).catch(() => {});
 }
 
+// Train until the round bell, then send weights. If the GPU engine throws, try wasm, then plain JS.
 async function startFederatedTraining(initialWeights, attempt = 0) {
   // Abort any running training, wait for it to stop
   if (running) {

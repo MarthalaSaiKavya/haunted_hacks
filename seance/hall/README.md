@@ -1,3 +1,7 @@
+# The séance actor
+
+`src/actors.ts` is the room. Everything else in this folder is the durable-actors project shell: package.json, the TypeScript check, and local state under `.durable-actors/` (not committed).
+
 # Actors
 
 Requires Bun 1.4.2+ on your PATH.

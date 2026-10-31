@@ -176,6 +176,7 @@ let roomHistory = [];
 let submissions = 0;
 let quorum = 1;
 
+// A short name for this phone, such as "ash-moth". New on every refresh.
 function spiritName() {
   const a = ['pale', 'ash', 'quiet', 'late', 'dim', 'old', 'soft', 'thin'];
   const b = ['candle', 'moth', 'crow', 'bell', 'glass', 'psalm', 'wick', 'dust'];
@@ -183,12 +184,14 @@ function spiritName() {
 }
 const myName = spiritName();
 
+// How many weights are inside a base64 string. 192512 characters is 36,096 weights.
 function weightCount(encoded) {
   if (!encoded) return 0;
   const pad = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0;
   return (encoded.length * 3 / 4 - pad) / 4;
 }
 
+// Turn a timestamp into a clock time in Pacific Time, for the transcript.
 function clock(ms) {
   return new Date(ms).toLocaleTimeString('en-US', {
     timeZone: 'America/Los_Angeles',
@@ -197,6 +200,7 @@ function clock(ms) {
   });
 }
 
+// Draw the shared-loss chart. The left axis is loss. The bottom axis is room version.
 function draw() {
   const canvas = $('chart');
   const rect = canvas.parentElement.getBoundingClientRect();
@@ -265,6 +269,7 @@ function draw() {
   if (last > 0) ctx.fillText('v' + roomHistory[last].version, xAt(last), h - 20);
 }
 
+// Fill the seat list. The phone you are on is marked "this phone".
 function renderPeople(clients) {
   $('spirits').textContent = String(clients.length);
   $('roster').innerHTML = clients.map((client) => {
@@ -273,6 +278,7 @@ function renderPeople(clients) {
   }).join('') || '<div class="seat">The chairs are empty.</div>';
 }
 
+// Fill the transcript and lift the latest "It continues" line into the big quote.
 function renderTalk(messages) {
   if (messages.length === seenTalk && $('talk').childElementCount) return;
   const box = $('talk');
@@ -297,6 +303,7 @@ function renderTalk(messages) {
   }
 }
 
+// Show the first shared loss, the latest one, and how far it fell. Then redraw the chart.
 function renderHistory(history) {
   roomHistory = history || [];
   if (!roomHistory.length) {
@@ -314,6 +321,7 @@ function renderHistory(history) {
   draw();
 }
 
+// Copy one server message into the numbers at the top of the page.
 function applyMeta(msg) {
   version = msg.version ?? version;
   deadlineMs = msg.deadlineMs || deadlineMs;
@@ -333,6 +341,7 @@ function applyMeta(msg) {
   if (msg.lossHistory) renderHistory(msg.lossHistory);
 }
 
+// Count down to the end of the 12 second round.
 function tickClock() {
   if (!deadlineMs) return;
   const seconds = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
@@ -341,6 +350,7 @@ function tickClock() {
 setInterval(tickClock, 250);
 window.addEventListener('resize', draw);
 
+// Use fast CPU (wasm) when the phone has it. Otherwise the slow plain-JS engine.
 async function ensureBackend() {
   const devices = await init();
   if (devices.includes('wasm')) {
@@ -351,6 +361,7 @@ async function ensureBackend() {
   return 'cpu';
 }
 
+// Train forever on Shakespeare until the round asks this phone to send its change.
 async function runLoop(initialWeights, device) {
   const tok = await fetch('/engine/data/shakespeare.tok.json').then((res) => {
     if (!res.ok) throw new Error(`tokenizer ${res.status}`);
@@ -401,6 +412,7 @@ async function runLoop(initialWeights, device) {
   }
 }
 
+// Send how the weights moved this round. First round sends the whole vector.
 function sendOffering() {
   if (!ws || ws.readyState !== WebSocket.OPEN || roundSteps === 0 || !trainingHandle.getFlat) return;
   const flat = trainingHandle.getFlat();
@@ -420,6 +432,7 @@ function sendOffering() {
   }));
 }
 
+// Stop any training already running, then start from the weights the actor just sent.
 async function startTraining(weightsB64) {
   const mine = ++turn;
   if (running) abortFlag = true;
@@ -455,6 +468,7 @@ async function startTraining(weightsB64) {
   }
 }
 
+// Ask for a ticket, then open the actor's WebSocket through this page.
 async function connect() {
   $('status').textContent = 'Joining the circle.';
   let ticket;
