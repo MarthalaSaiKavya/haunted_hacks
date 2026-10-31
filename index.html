@@ -864,8 +864,14 @@ $('join-name').value = randomDeviceName();
 // so a phone link can join the same nano/CPU run without tapping the controls.
 const _urlParams = new URLSearchParams(location.search);
 const _urlSession = _urlParams.get('session');
-const _lockCpu = _urlParams.get('backend') === 'cpu';
-if (_urlSession) $('join-id').value = _urlSession;
+// A shared session link stays on CPU. Phone WebGPU often dies on the first step.
+const _lockCpu = _urlParams.get('backend') === 'cpu' || Boolean(_urlSession);
+if (_urlSession) {
+  $('join-id').value = _urlSession;
+  if (!_urlParams.get('model')) $('input-model').value = 'nano';
+  if (!_urlParams.get('dataset')) $('input-dataset').value = 'shakespeare';
+  $('input-valevery').value = '9999';
+}
 if (_urlParams.get('model')) $('input-model').value = _urlParams.get('model');
 if (_urlParams.get('dataset')) $('input-dataset').value = _urlParams.get('dataset');
 const chart = $('chart');
@@ -1397,7 +1403,16 @@ function submitDelta() {
   roundSteps = 0; roundLossSum = 0; roundTokens = 0;
 }
 
-async function startFederatedTraining(initialWeights) {
+function reportClientError(device, err) {
+  const message = (err && err.message) ? err.message : String(err);
+  fetch('/client-log', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: `${device}: ${message}\n${err && err.stack ? err.stack : ''}`,
+  }).catch(() => {});
+}
+
+async function startFederatedTraining(initialWeights, attempt = 0) {
   // Abort any running training, wait for it to stop
   if (running) {
     abortFlag = true;
@@ -1418,7 +1433,9 @@ async function startFederatedTraining(initialWeights) {
     const trainData = new Uint16Array(await fetch(`data/${dataset}.train.bin`).then(r => r.arrayBuffer()));
     const valData = new Uint16Array(await fetch(`data/${dataset}.val.bin`).then(r => r.arrayBuffer()));
 
-    const device = selectedBackend === 'gpu' ? 'webgpu' : 'wasm';
+    const preferGpu = selectedBackend === 'gpu' && !_lockCpu;
+    const deviceOrder = preferGpu ? ['webgpu', 'wasm', 'cpu'] : ['wasm', 'cpu'];
+    const device = deviceOrder[Math.min(attempt, deviceOrder.length - 1)];
     defaultDevice(device);
 
     const model = $('input-model').value;
@@ -1492,9 +1509,20 @@ async function startFederatedTraining(initialWeights) {
 
     $('stat-status').textContent = inSession ? 'training' : 'stopped';
   } catch (err) {
-    $('stat-status').textContent = 'error';
-    console.error(err);
-    $('samples-body').innerHTML = `<div class="samples-empty" style="color:var(--red)">${escHtml(err.message)}</div>`;
+    const preferGpu = selectedBackend === 'gpu' && !_lockCpu;
+    const deviceOrder = preferGpu ? ['webgpu', 'wasm', 'cpu'] : ['wasm', 'cpu'];
+    const device = deviceOrder[Math.min(attempt, deviceOrder.length - 1)];
+    const message = (err && err.message) ? err.message : String(err);
+    console.error(device, err);
+    reportClientError(device, err);
+    if (attempt + 1 < deviceOrder.length && inSession) {
+      running = false;
+      abortFlag = false;
+      await startFederatedTraining(initialWeights, attempt + 1);
+      return;
+    }
+    $('stat-status').textContent = message.slice(0, 48);
+    $('samples-body').innerHTML = `<div class="samples-empty" style="color:var(--red)">${escHtml(message)}</div>`;
   }
 
   running = false;
