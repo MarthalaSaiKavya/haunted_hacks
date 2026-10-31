@@ -110,13 +110,17 @@ function spiritName() {
   const b = ['candle', 'moth', 'crow', 'bell', 'glass', 'psalm', 'wick', 'dust'];
   return `${a[Math.floor(Math.random() * a.length)]}-${b[Math.floor(Math.random() * b.length)]}`;
 }
-const myName = spiritName();
+const frame = new URLSearchParams(location.search);
+const framed = frame.get('phone');
+const named = frame.get('name');
+const myName = named && named.length <= 32 ? named : spiritName();
 $('name').textContent = myName;
 $('me-label').textContent = myName;
-let workerId = localStorage.getItem('seance-worker-id');
+let workerId = framed && /^[A-Za-z0-9._-]{1,64}$/.test(framed) ? framed : localStorage.getItem('seance-worker-id');
+const rememberHere = !framed;
 if (!workerId || !/^[A-Za-z0-9._-]{1,64}$/.test(workerId)) {
   workerId = crypto.randomUUID();
-  localStorage.setItem('seance-worker-id', workerId);
+  if (rememberHere) localStorage.setItem('seance-worker-id', workerId);
 }
 
 let ws = null;
@@ -382,7 +386,7 @@ async function connect() {
     workerTicket = grant.workerTicket;
     if (grant.workerId) {
       workerId = grant.workerId;
-      localStorage.setItem('seance-worker-id', workerId);
+      if (rememberHere) localStorage.setItem('seance-worker-id', workerId);
     }
   } catch (error) {
     $('status').textContent = 'Could not reach Orca.';

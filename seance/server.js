@@ -276,6 +276,9 @@ Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
   if (url.pathname === '/join' || url.pathname === '/join.html') {
     return serveFile(new URL('./public/join.html', ROOT));
   }
+  if (url.pathname === '/frames') {
+    return serveFile(new URL('./public/frames.html', ROOT));
+  }
   if (url.pathname === '/codec.js') return serveFile(new URL('./codec.js', ROOT));
   if (url.pathname.startsWith('/engine/data/')) {
     const file = safeFile(ENGINE, `/data/${url.pathname.slice('/engine/data/'.length)}`);

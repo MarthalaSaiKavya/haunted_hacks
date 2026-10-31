@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone frames</title>
+<style>
+  :root {
+    --bg: #0e0c0a;
+    --ink: #f6efe4;
+    --dim: #b7a898;
+    --line: #3c332c;
+    --ember: #e39a56;
+    --ember-2: #f1d3a8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: Georgia, "Iowan Old Style", Palatino, serif; min-height: 100vh; }
+  button, .kicker, .count { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .bar {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center;
+    padding: 0.8rem 1rem; background: #14110e; border-bottom: 1px solid var(--line);
+  }
+  h1 { font-weight: 500; font-size: 1.4rem; margin: 0; }
+  .kicker { color: var(--ember); letter-spacing: 0.14em; font-size: 0.66rem; text-transform: uppercase; }
+  p { margin: 0; color: var(--dim); max-width: 36rem; line-height: 1.35; }
+  button {
+    background: transparent; color: var(--ink); border: 1px solid var(--ember);
+    padding: 0.45rem 0.7rem; cursor: pointer;
+  }
+  button.quiet { border-color: var(--line); color: var(--dim); }
+  .count { color: var(--ember-2); }
+  .stage {
+    display: flex; flex-wrap: wrap; gap: 1.4rem;
+    padding: 1.2rem 1rem 2rem; align-items: flex-start;
+  }
+  .device { width: 320px; }
+  .bezel {
+    background: #1c1916; border: 3px solid #3a332c; border-radius: 28px;
+    padding: 12px 10px 16px; box-shadow: none;
+  }
+  .top { display: flex; justify-content: space-between; align-items: center; padding: 0 8px 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #3a332c; margin: 0 auto; }
+  iframe { width: 100%; height: 640px; border: 0; background: #0e0c0a; border-radius: 16px; display: block; }
+  .empty { color: var(--dim); padding: 2rem 0; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div>
+    <div class="kicker">Recording only</div>
+    <h1>Phone frames</h1>
+  </div>
+  <p>Each frame is the real join screen. Orca does not link here. A phone in the room still uses the QR.</p>
+  <button id="one" type="button">Add a phone</button>
+  <button id="three" type="button">Add three</button>
+  <span class="count" id="count">0 phones</span>
+</div>
+<div class="stage" id="stage">
+  <p class="empty" id="empty">No frames yet. Add a phone to show the join screen beside Orca.</p>
+</div>
+<script>
+const first = ['pale', 'ash', 'quiet', 'late', 'dim', 'old', 'soft', 'thin'];
+const second = ['candle', 'moth', 'crow', 'bell', 'glass', 'psalm', 'wick', 'dust'];
+const phones = [];
+const maxPhones = 6;
+
+function nameFor() {
+  const a = first[Math.floor(Math.random() * first.length)];
+  const b = second[Math.floor(Math.random() * second.length)];
+  const name = `${a}-${b}`;
+  if (phones.some((phone) => phone.name === name)) return nameFor();
+  return name;
+}
+
+function paintCount() {
+  const n = phones.length;
+  document.getElementById('count').textContent = n === 1 ? '1 phone' : `${n} phones`;
+  document.getElementById('empty').style.display = n ? 'none' : 'block';
+}
+
+function addPhone() {
+  if (phones.length >= maxPhones) return;
+  const id = crypto.randomUUID();
+  const name = nameFor();
+  const src = `/join?phone=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`;
+  const device = document.createElement('div');
+  device.className = 'device';
+  device.innerHTML = `
+    <div class="bezel">
+      <div class="top"><button type="button" class="quiet">Remove</button><span class="dot"></span><span></span></div>
+      <iframe title="${name}" src="${src}"></iframe>
+    </div>`;
+  device.querySelector('button').onclick = () => {
+    const frame = device.querySelector('iframe');
+    frame.src = 'about:blank';
+    device.remove();
+    const index = phones.indexOf(device);
+    if (index >= 0) phones.splice(index, 1);
+    paintCount();
+  };
+  document.getElementById('stage').appendChild(device);
+  phones.push(device);
+  paintCount();
+}
+
+document.getElementById('one').onclick = () => addPhone();
+document.getElementById('three').onclick = () => {
+  for (let i = 0; i < 3; i++) addPhone();
+};
+</script>
+</body>
+</html>
