@@ -229,8 +229,17 @@ function othersLine(clients) {
     : 'You are the only phone in the room. Your send is the one Orca will save.';
 }
 
-// The room moved on without this phone's delta. Drop the stale copy and train from the new one.
+let peerNames = [];
+let paused = false;
+let pausedAt = 0;
+let versionAtPause = 0;
+
+// The room moved on without this phone's delta. Stop guessing.
+// Starting a new model here makes every phone freeze, including the one that just saved.
 function dropCopy(reason) {
+  paused = true;
+  pausedAt = Date.now();
+  versionAtPause = version;
   latestWeights = '';
   lastFlat = null;
   roundStart = null;
@@ -238,8 +247,24 @@ function dropCopy(reason) {
   roundTokens = 0;
   roundLossSum = 0;
   abortFlag = true;
-  trace('reload', reason);
-  loadWeights().then(() => kick());
+  $('status').textContent = 'Another phone saved this round. This one waits so that phone can keep guessing.';
+  trace('pause', reason);
+}
+
+function maybeResume() {
+  if (!paused) return;
+  if (version !== versionAtPause) {
+    versionAtPause = version;
+    pausedAt = Date.now();
+    return;
+  }
+  const names = [...new Set([...peerNames, myName])].filter(Boolean).sort();
+  const index = Math.max(0, names.indexOf(myName));
+  if (Date.now() - pausedAt < 20000 + index * 25000) return;
+  paused = false;
+  $('status').textContent = 'The round was not moving. This phone is guessing again.';
+  trace('resume', `version ${version}`);
+  kick();
 }
 
 // Adopt a newer version. Keep training when this phone is the one that just saved.
@@ -265,7 +290,10 @@ function applyMeta(msg) {
   noteDeadline(msg.deadlineMs);
   roomMoved(msg.version, msg.type || 'socket', msg.lastSave);
   paintMine();
-  if (msg.clients) othersLine(msg.clients);
+  if (msg.clients) {
+    peerNames = msg.clients.map((client) => client.name).filter(Boolean);
+    othersLine(msg.clients);
+  }
 }
 
 async function ensureBackend() {
@@ -450,6 +478,11 @@ async function supervise() {
     catch { deviceName = 'cpu'; }
   }
   while (ws && ws.readyState === WebSocket.OPEN) {
+    if (paused) {
+      abortFlag = false;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      continue;
+    }
     if (!latestWeights) {
       await loadWeights();
       if (!latestWeights) {
@@ -563,12 +596,16 @@ connect();
 draw();
 setInterval(() => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (!latestWeights) loadWeights().then(() => kick());
-  else if (!supervisor) {
-    trace('restart', 'training loop was down');
-    kick();
-  }
-  pollClock().then(() => maybeSend('clock'));
+  pollClock().then(() => {
+    maybeResume();
+    if (paused) return;
+    if (!latestWeights) loadWeights().then(() => kick());
+    else if (!supervisor) {
+      trace('restart', 'training loop was down');
+      kick();
+    }
+    return maybeSend('clock');
+  });
 }, 1000);
 </script>
 </body>
