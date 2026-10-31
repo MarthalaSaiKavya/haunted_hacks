@@ -11,7 +11,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@relayflows/runtime-linux-x64": "^2.0.22",
+    "@relayflows/runtime-linux-x64": "^2.0.55",
+    "@relayflows/sdk": "^2.0.55",
+    "@relayflows/surface": "^2.0.55",
     "agent-relay": "^15.0.0-next.10"
   }
 }
