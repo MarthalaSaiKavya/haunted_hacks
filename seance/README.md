@@ -4,6 +4,8 @@ Phones train a tiny Shakespeare model and send only the change in the weights. O
 
 Open `/` on the demo screen. That page is Orca: the join link, every phone, and the shared loss. Phones open `/join`. A phone posts its weight change to `/publish`. The full change is too large for the hosted socket, so that post is what moves the version.
 
+`/frames` is only for a screen recording. It opens phone-sized copies of the join screen. Orca does not link to it.
+
 Two processes:
 
 ```bash
