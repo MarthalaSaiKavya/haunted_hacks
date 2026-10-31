@@ -1,11 +1,14 @@
-// Séance room. One actor, many spirits, two voices that only report
-// what the room actually measured.
+// Séance page and voice.
+// The training room itself is the TrainingRoom durable actor on port 7100.
+// This process serves the page, hands the phone that actor's WebSocket,
+// and asks the saved weights for one real line after each round.
 
-import { createRoom } from './actor.js';
+import { actors } from './bridge/generated/index.js';
 import { decodeF32 } from './codec.js';
 import { speak } from './infer.js';
 
 const PORT = 43131;
+const ACTOR_ID = 'hall';
 const ROOT = new URL('./', import.meta.url);
 const STATE_URL = new URL('./state/hall.json', import.meta.url);
 const ENGINE = new URL('../', import.meta.url);
@@ -20,72 +23,51 @@ const TYPES = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
-function readState() {
-  try {
-    return JSON.parse(Deno.readTextFileSync(STATE_URL));
-  } catch {
-    return null;
-  }
-}
-
-function writeState(state) {
-  Deno.mkdirSync(new URL('./state/', import.meta.url), { recursive: true });
-  const tmp = new URL('./state/hall.json.tmp', import.meta.url);
-  Deno.writeTextFileSync(tmp, JSON.stringify(state));
-  Deno.renameSync(tmp, STATE_URL);
-}
-
-const room = createRoom({ id: 'hall', readState, writeState });
-const sockets = new Set();
+const tickets = new Map();
 let voiceBusy = false;
 
-function send(ws, body) {
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(body));
+function room() {
+  return actors.TrainingRoom.get(ACTOR_ID);
 }
 
-function broadcast(body) {
-  const text = JSON.stringify(body);
-  for (const ws of sockets) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(text);
-    else sockets.delete(ws);
+async function seedFromDisk() {
+  let saved;
+  try {
+    saved = JSON.parse(Deno.readTextFileSync(STATE_URL));
+  } catch {
+    return;
   }
+  if (!saved.weightsB64) return;
+  const version = await room().seed({
+    version: saved.version ?? 0,
+    weightsB64: saved.weightsB64,
+    lossHistory: saved.lossHistory ?? [],
+    messages: saved.messages ?? [],
+    spokenVersion: saved.spokenVersion ?? -1,
+  });
+  console.log(`actor hall is on version ${version}`);
 }
 
 async function maybeSpeak() {
-  if (voiceBusy || !room.needsVoice()) return;
+  if (voiceBusy) return;
+  const snap = await room().snapshot();
+  const previous = snap.version - 1;
+  if (!snap.weightsB64 || snap.spokenVersion >= previous || previous < 0) return;
   voiceBusy = true;
-  const weights = room.weights();
-  const version = room.view(false).version - 1;
   try {
-    const line = await speak(weights, 'to be');
-    await room.say('The Voice', `It continues: ${line}`);
-    await room.markSpoken(version);
+    const line = await speak(decodeF32(snap.weightsB64), 'to be');
+    await room().recordLine('The Voice', `It continues: ${line}`, previous);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await room.say('The Voice', `The sample failed: ${message}`);
-    await room.markSpoken(version);
+    await room().recordLine('The Voice', `The sample failed: ${message}`, previous);
   } finally {
     voiceBusy = false;
-    broadcast({ type: 'pulse', ...room.view(false) });
   }
 }
 
-setInterval(() => {
-  room.tick(Date.now()).then((result) => {
-    if (result.kind === 'submit') broadcast({ type: 'submit', ...result.view });
-    else if (result.kind === 'round') {
-      broadcast({ type: 'round', ...result.view });
-      maybeSpeak();
-    } else if (result.kind === 'sleep' || result.kind === 'roll') {
-      broadcast({ type: 'pulse', ...result.view });
-    }
-  });
-}, 250);
-
 function safeFile(base, requestPath) {
   const url = new URL(`.${requestPath}`, base);
-  const basePath = base.pathname;
-  if (!url.pathname.startsWith(basePath)) return null;
+  if (!url.pathname.startsWith(base.pathname)) return null;
   return url;
 }
 
@@ -105,94 +87,85 @@ function serveFile(url) {
   }
 }
 
-function handleSocket(req) {
+function proxyActorSocket(req, upstreamUrl) {
   const { socket, response } = Deno.upgradeWebSocket(req);
-  let clientId = null;
-  sockets.add(socket);
-
-  socket.onmessage = async (event) => {
-    let msg;
-    try {
-      msg = JSON.parse(event.data);
-    } catch {
-      send(socket, { type: 'reject', reason: 'invalid JSON' });
-      return;
-    }
-    if (msg.type === 'join') {
-      clientId = crypto.randomUUID().slice(0, 8);
-      const name = String(msg.name ?? 'spirit').trim().slice(0, 32) || 'spirit';
-      const view = await room.join({ id: clientId, name, joinedAt: Date.now() });
-      send(socket, { type: 'hello', clientId, ...view });
-      broadcast({ type: 'pulse', ...room.view(false) });
-      return;
-    }
-    if (!clientId) {
-      send(socket, { type: 'reject', reason: 'join first' });
-      return;
-    }
-    if (msg.type === 'loss') {
-      const view = await room.loss(clientId, msg.loss, msg.tokens);
-      broadcast({ type: 'pulse', ...view });
-      return;
-    }
-    if (msg.type === 'publish') {
-      const result = await room.publish(clientId, {
-        delta: decodeF32(msg.deltaB64),
-        tokens: msg.tokens,
-        loss: msg.loss,
-        baseVersion: msg.baseVersion,
-      });
-      if (!result.ok) {
-        send(socket, { type: 'reject', reason: result.reason, ...result.view });
-        return;
-      }
-      if (result.closed) {
-        broadcast({ type: 'round', ...result.view });
-        maybeSpeak();
-      } else {
-        broadcast({ type: 'pulse', ...result.view });
-      }
-      return;
-    }
-    send(socket, { type: 'reject', reason: 'unknown message' });
+  const upstream = new WebSocket(upstreamUrl);
+  const waiting = [];
+  let open = false;
+  upstream.onopen = () => {
+    open = true;
+    for (const data of waiting) upstream.send(data);
+    waiting.length = 0;
   };
-
-  const drop = async () => {
-    sockets.delete(socket);
-    if (clientId) {
-      const view = await room.leave(clientId);
-      broadcast({ type: 'pulse', ...view });
-    }
+  upstream.onmessage = (event) => {
+    if (socket.readyState === WebSocket.OPEN) socket.send(event.data);
   };
-  socket.onclose = drop;
-  socket.onerror = drop;
+  upstream.onclose = () => {
+    if (socket.readyState === WebSocket.OPEN) socket.close();
+  };
+  socket.onmessage = (event) => {
+    if (open) upstream.send(event.data);
+    else waiting.push(event.data);
+  };
+  socket.onclose = () => upstream.close();
+  socket.onerror = () => upstream.close();
+  upstream.onerror = () => {
+    if (socket.readyState === WebSocket.OPEN) socket.close();
+  };
   return response;
 }
 
-await room.say('The Watcher', 'The Watcher is seated. I will only report a loss I have seen.');
+await seedFromDisk();
+setInterval(() => {
+  maybeSpeak().catch((error) => console.error(error));
+}, 1000);
 
-Deno.serve({ port: PORT, hostname: '0.0.0.0' }, (req) => {
+Deno.serve({ port: PORT, hostname: '0.0.0.0' }, async (req) => {
   const url = new URL(req.url);
-  if (url.pathname === '/ws') return handleSocket(req);
-  if (url.pathname === '/health') {
-    const view = room.view(false);
-    return Response.json({ ok: true, room: view.roomId, version: view.version, spirits: view.clients.length });
+
+  if (url.pathname === '/actor-ws') {
+    const ticket = url.searchParams.get('ticket');
+    const upstream = ticket ? tickets.get(ticket) : undefined;
+    if (!upstream) return new Response('ticket expired', { status: 404 });
+    tickets.delete(ticket);
+    return proxyActorSocket(req, upstream);
   }
-  if (url.pathname === '/rooms') {
-    const view = room.view(false);
-    return Response.json([{
-      id: view.roomId,
-      version: view.version,
-      avgLoss: view.avgLoss,
-      spirits: view.clients.length,
-      dormant: view.dormant,
-    }]);
+
+  if (req.method === 'POST' && url.pathname === '/grant') {
+    let name = 'spirit';
+    try {
+      const body = await req.json();
+      name = String(body.name ?? 'spirit').trim().slice(0, 32) || 'spirit';
+    } catch {
+      // keep the default name
+    }
+    const grant = await actors.TrainingRoom.prepareWebsocket({
+      actorId: ACTOR_ID,
+      metadata: { name },
+    });
+    const ticket = crypto.randomUUID();
+    tickets.set(ticket, grant.websocketUrl);
+    return Response.json({ ticket }, { headers: { 'cache-control': 'no-store' } });
   }
+
+  if (url.pathname === '/health' || url.pathname === '/rooms') {
+    const snap = await room().snapshot();
+    const summary = {
+      id: ACTOR_ID,
+      version: snap.version,
+      avgLoss: snap.lossHistory.at(-1)?.avgLoss ?? null,
+      durableActor: true,
+    };
+    if (url.pathname === '/health') {
+      return Response.json({ ok: true, room: ACTOR_ID, version: snap.version, durableActor: true });
+    }
+    return Response.json([summary]);
+  }
+
   if (url.pathname === '/' || url.pathname === '/index.html') {
     return serveFile(new URL('./public/index.html', ROOT));
   }
   if (url.pathname === '/codec.js') return serveFile(new URL('./codec.js', ROOT));
-
   if (url.pathname.startsWith('/engine/data/')) {
     const file = safeFile(ENGINE, `/data/${url.pathname.slice('/engine/data/'.length)}`);
     return file ? serveFile(file) : new Response('not found', { status: 404 });

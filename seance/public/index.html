@@ -93,7 +93,7 @@
     <div>
       <div class="kicker">One room · many phones · one model</div>
       <h1>Séance</h1>
-      <p class="lede">Every phone trains the same small Shakespeare model. The room keeps a single copy of the weights and averages each change. The Watcher reports the loss. The Voice reads what those weights now write.</p>
+      <p class="lede">Every phone trains the same small Shakespeare model. The room is one durable actor: it applies each change in order and saves the weights before it answers. The Watcher reports the loss. The Voice reads what those weights now write.</p>
     </div>
     <div class="seal"><b>ROOM</b><span>Hall</span></div>
   </header>
@@ -455,15 +455,31 @@ async function startTraining(weightsB64) {
   }
 }
 
-function connect() {
+async function connect() {
+  $('status').textContent = 'Joining the circle.';
+  let ticket;
+  try {
+    const response = await fetch('/grant', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: myName }),
+    });
+    if (!response.ok) throw new Error(`grant ${response.status}`);
+    ticket = (await response.json()).ticket;
+  } catch (error) {
+    $('status').textContent = 'Could not reach the actor.';
+    $('error').textContent = error instanceof Error ? error.message : String(error);
+    setTimeout(connect, 1500);
+    return;
+  }
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws = new WebSocket(`${proto}://${location.host}/actor-ws?ticket=${ticket}`);
   ws.onopen = () => {
-    $('status').textContent = 'Joining the circle.';
-    ws.send(JSON.stringify({ type: 'join', name: myName }));
+    $('status').textContent = 'Connected to the actor.';
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
+    if (msg.type === 'state' || msg.type === 'state_update') return;
     if (msg.type === 'reject') {
       $('error').textContent = msg.reason || 'The room refused the offering.';
       if (msg.weightsB64) startTraining(msg.weightsB64);

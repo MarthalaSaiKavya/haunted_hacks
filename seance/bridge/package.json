@@ -1,0 +1,8 @@
+{
+  "name": "seance-bridge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "durable-actors": "0.14.6"
+  }
+}
